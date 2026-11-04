@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "updated": "2026-11-04",
+  "note": "Personal use. The TV app reads every feed directly; nothing is stored or re-hosted. Edit this file to change sources without re-signing the app.",
+  "tabs": [
+    {
+      "id": "news",
+      "title": "Tin tức",
+      "sources": [
+        {
+          "id": "vne-diem-tin",
+          "title": "VnExpress · Điểm tin",
+          "type": "rss",
+          "url": "https://vnexpress.net/rss/podcast/diem-tin.rss"
+        },
+        {
+          "id": "vne-hom-nay",
+          "title": "VnExpress Hôm nay",
+          "type": "rss",
+          "url": "https://vnexpress.net/rss/podcast/vnexpress-hom-nay.rss"
+        },
+        {
+          "id": "tuoi-tre",
+          "title": "Tuổi Trẻ Online",
+          "type": "rss",
+          "url": "https://podcast.tuoitre.vn/podcast-feed.rss"
+        },
+        {
+          "id": "vov-tin-nhanh",
+          "title": "VOV · Tin nhanh 24h",
+          "type": "rss",
+          "url": "https://anchor.fm/s/86f0c04/podcast/rss"
+        },
+        {
+          "id": "vov-thoi-su",
+          "title": "VOV · Thời sự",
+          "type": "rss",
+          "url": "https://anchor.fm/s/86ec8d4/podcast/rss"
+        },
+        {
+          "id": "vne-explainer",
+          "title": "VnExpress · News Explainer",
+          "type": "rss",
+          "url": "https://vnexpress.net/rss/podcast/news-explainer.rss"
+        },
+        {
+          "id": "vne-ho-noi-gi",
+          "title": "VnExpress · Họ nói gì",
+          "type": "rss",
+          "url": "https://vnexpress.net/rss/podcast/ho-noi-gi.rss"
+        }
+      ]
+    },
+    {
+      "id": "topics",
+      "title": "Chuyên đề",
+      "sources": [
+        {
+          "id": "vov-noi-chinh",
+          "title": "VOV · Nội chính",
+          "type": "rss",
+          "url": "https://anchor.fm/s/87b8d30/podcast/rss"
+        },
+        {
+          "id": "vov-ban-luan",
+          "title": "VOV · Sự kiện bàn luận",
+          "type": "rss",
+          "url": "https://anchor.fm/s/8535a2c/podcast/rss"
+        },
+        {
+          "id": "vne-tai-chinh",
+          "title": "VnExpress · Tài chính cá nhân",
+          "type": "rss",
+          "url": "https://vnexpress.net/rss/podcast/tai-chinh-ca-nhan.rss"
+        }
+      ]
+    },
+    {
+      "id": "podcasts",
+      "title": "Podcast",
+      "sources": [
+        {
+          "id": "vne-giai-ma",
+          "title": "VnExpress · Giải mã",
+          "type": "rss",
+          "url": "https://vnexpress.net/rss/podcast/giai-ma.rss"
+        },
+        {
+          "id": "vne-hop-den",
+          "title": "VnExpress · Hộp đen",
+          "type": "rss",
+          "url": "https://vnexpress.net/rss/podcast/hop-den.rss"
+        },
+        {
+          "id": "vc-have-a-sip",
+          "title": "Vietcetera · Have A Sip",
+          "type": "rss",
+          "url": "https://anchor.fm/s/103273a04/podcast/rss"
+        },
+        {
+          "id": "vc-innovators",
+          "title": "Vietcetera · Vietnam Innovators",
+          "type": "rss",
+          "url": "https://anchor.fm/s/1029d909c/podcast/rss"
+        },
+        {
+          "id": "spiderum",
+          "title": "Spiderum",
+          "type": "rss",
+          "url": "https://anchor.fm/s/13c13550/podcast/rss"
+        }
+      ]
+    },
+    {
+      "id": "books",
+      "title": "Truyện & Sách",
+      "sources": [
+        {
+          "id": "dhn-dem-khuya",
+          "title": "Đài Hà Nội · Đọc truyện đêm khuya",
+          "type": "rss",
+          "url": "https://anchor.fm/s/e75b3a50/podcast/rss"
+        },
+        {
+          "id": "vov-dem-khuya",
+          "title": "VOV · Đọc truyện đêm khuya",
+          "type": "rss",
+          "url": "https://anchor.fm/s/1177db9b0/podcast/rss",
+          "next": "newer"
+        },
+        {
+          "id": "nhn-dem-khuya",
+          "title": "Người Hà Nội · Đọc truyện đêm khuya",
+          "type": "rss",
+          "url": "https://anchor.fm/s/10f79b9f8/podcast/rss"
+        },
+        {
+          "id": "vov-truyen-dai",
+          "title": "VOV · Truyện dài",
+          "type": "rss",
+          "url": "https://anchor.fm/s/117840824/podcast/rss",
+          "next": "newer"
+        },
+        {
+          "id": "voiz",
+          "title": "Voiz FM · Sách nói",
+          "type": "rss",
+          "url": "https://anchor.fm/s/4fc2edb4/podcast/rss"
+        },
+        {
+          "id": "fonos",
+          "title": "Fonos · Thư viện sách nói",
+          "type": "rss",
+          "url": "https://feeds.transistor.fm/thu-vien-sach-noi-fonos"
+        },
+        {
+          "id": "audioaz",
+          "title": "AudioAZ",
+          "type": "audioaz",
+          "url": "https://audioaz.com/vi",
+          "next": "list"
+        },
+        {
+          "id": "sachnoivietnam",
+          "title": "Sách Nói Việt Nam",
+          "type": "wordpress",
+          "url": "https://sachnoivietnam.com/feed/",
+          "next": "list"
+        }
+      ]
+    },
+    {
+      "id": "kids",
+      "title": "Cho bé",
+      "sources": [
+        {
+          "id": "vov-thieu-nhi",
+          "title": "VOV · Truyện thiếu nhi",
+          "type": "rss",
+          "url": "https://anchor.fm/s/10d9d0478/podcast/rss"
+        },
+        {
+          "id": "vov-co-tich",
+          "title": "VOV · Đọc thơ và truyện cổ tích",
+          "type": "rss",
+          "url": "https://anchor.fm/s/117757930/podcast/rss"
+        }
+      ]
+    }
+  ],
+  "hosts": [
+    "raw.githubusercontent.com",
+    "vnexpress.net",
+    "vnecdn.net",
+    "tuoitre.vn",
+    "anchor.fm",
+    "cloudfront.net",
+    "podcasters.spotify.com",
+    "transistor.fm",
+    "audioaz.com",
+    "archive.org",
+    "sachnoivietnam.com",
+    "amazonaws.com"
+  ]
+}

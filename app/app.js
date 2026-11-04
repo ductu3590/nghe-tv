@@ -1,0 +1,462 @@
+// Nghe: pick a news bulletin, podcast or audiobook, then listen over a quiet full-screen picture.
+// Reads every source directly from the TV; keeps only small caches and progress in localStorage.
+// Never registers Home, Power or brand keys; only media keys the TV reports as supported.
+(function () {
+  'use strict';
+  var feeds = window.NgheFeeds, player = window.NghePlayer, tv = window.tizen;
+  var $ = function (id) { return document.getElementById(id); };
+  var REMOTE_SOURCES = 'https://raw.githubusercontent.com/ductu3590/nghe-tv/main/app/sources.json';
+  var PREVIEW = !tv && /^http/.test(location.protocol); // desktop preview: go through the loopback dev proxy
+  var CACHE_KEY = 'nghe-cache-v1', PROGRESS_KEY = 'nghe-progress', RECENT_KEY = 'nghe-recent';
+  var CACHE_TTL = 20 * 60 * 1000, FEED_ITEMS = 30, CALM_MS = 6000, SEEK = 15;
+  var MEDIA_KEYS = ['MediaPlayPause', 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaRewind', 'MediaFastForward', 'MediaTrackPrevious', 'MediaTrackNext'];
+
+  var audio = $('audio'), tabsEl = $('tabs'), sourcesEl = $('sources'), listEl = $('list');
+  var state = {tabs: [], tab: 0, source: 0, list: [], stack: [], listTitle: '', view: 'browse', zone: 'sources'};
+  var now = {entry: null, list: [], index: -1, source: null};
+  var keyNames = {}, memory = {}, toastTimer = null, calmTimer = null, sleepTimer = null, sleepMinutes = 0, saveAt = 0, loadToken = 0;
+
+  // ---- Small storage helpers: every access may throw (private mode, quota) and must never break playback ----
+  function readJson(key, fallback) {
+    try { var value = JSON.parse(localStorage.getItem(key)); return value === null ? fallback : value; } catch (error) { return fallback; }
+  }
+  function writeJson(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (error) { /* keep going */ } }
+  var progress = readJson(PROGRESS_KEY, {}), recent = readJson(RECENT_KEY, []);
+  if (!progress || typeof progress !== 'object' || Array.isArray(progress)) progress = {};
+  if (!Array.isArray(recent)) recent = [];
+
+  function toast(text) {
+    var node = $('toast'); node.textContent = text; node.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { node.hidden = true; }, 4500);
+  }
+  function cssUrl(url) { return 'url("' + viaProxy(url).replace(/"/g, '%22') + '")'; }
+  function viaProxy(url) { return PREVIEW && /^https:\/\//.test(url) ? '/proxy?url=' + encodeURIComponent(url) : url; }
+
+  // ---- Network: XHR (old engines), with an early stop once a big feed has delivered enough items ----
+  function load(url, options, done) {
+    var xhr = new XMLHttpRequest(), finished = false;
+    var timer = setTimeout(function () { finish(new Error('timeout')); try { xhr.abort(); } catch (error) { /* gone */ } }, options.timeout || 25000);
+    function finish(error, text) { if (finished) return; finished = true; clearTimeout(timer); done(error, text); }
+    xhr.open('GET', viaProxy(url), true);
+    if (options.until) {
+      xhr.onprogress = function () {
+        var text = xhr.responseText || '', cut = options.until(text);
+        if (cut > 0) { finish(null, text.slice(0, cut)); try { xhr.abort(); } catch (error) { /* done */ } }
+      };
+    }
+    xhr.onload = function () {
+      if ((xhr.status >= 200 && xhr.status < 300) || (xhr.status === 0 && xhr.responseText)) finish(null, xhr.responseText);
+      else finish(new Error('HTTP ' + xhr.status));
+    };
+    xhr.onerror = function () { finish(new Error('network')); };
+    xhr.send();
+  }
+  function cached(key) {
+    if (memory[key]) return memory[key];
+    var all = readJson(CACHE_KEY, {}), entry = all && all[key];
+    return player.isFresh(entry, Date.now(), CACHE_TTL) ? (memory[key] = entry) : null;
+  }
+  function remember(key, value) {
+    value.at = Date.now(); memory[key] = value;
+    var all = readJson(CACHE_KEY, {}), keys;
+    if (!all || typeof all !== 'object') all = {};
+    all[key] = value;
+    keys = Object.keys(all).sort(function (a, b) { return (all[b].at || 0) - (all[a].at || 0); });
+    keys.slice(40).forEach(function (name) { delete all[name]; });
+    writeJson(CACHE_KEY, all);
+  }
+  // Loads a source (or one book of it) into {title, image, items}. Book sites are personal-use adapters.
+  function loadSource(source, folder, done) {
+    var key = folder ? 'f:' + (folder.url || folder.id) : 's:' + source.id, hit = cached(key);
+    if (hit) { done(null, hit); return; }
+    function keep(error, value) { if (!error) remember(key, value); done(error, value); }
+    if (folder && folder.tracks) { keep(null, {title: folder.title, image: folder.image, items: folder.tracks}); return; }
+    if (source.type === 'rss') {
+      load(source.url, {until: function (text) { return feeds.enoughItems(text, FEED_ITEMS); }}, function (error, text) {
+        if (error) { done(error); return; }
+        var feed = feeds.parseRss(text, FEED_ITEMS);
+        keep(feed.items.length ? null : new Error('empty'), feed);
+      });
+    } else if (source.type === 'audioaz') {
+      load(folder ? folder.url : source.url, {}, function (error, html) {
+        if (error) { done(error); return; }
+        var items = folder ? feeds.audioazTracks(html) : feeds.audioazBooks(html);
+        keep(items.length ? null : new Error('empty'), {title: folder ? folder.title : source.title, image: folder ? folder.image : '', items: items});
+      });
+    } else if (source.type === 'wordpress') {
+      load(source.url, {}, function (error, text) {
+        if (error) { done(error); return; }
+        var items = feeds.wordpressBooks(text, 50);
+        keep(items.length ? null : new Error('empty'), {title: source.title, image: '', items: items});
+      });
+    } else done(new Error('unknown source type'));
+  }
+
+  // ---- Sources list: bundled copy first (instant, works offline), then the GitHub copy if it is valid ----
+  function validTabs(value) {
+    if (!value || !Array.isArray(value.tabs)) return null;
+    var tabs = value.tabs.filter(function (tab) {
+      return tab && typeof tab.title === 'string' && Array.isArray(tab.sources) && tab.sources.some(function (source) {
+        return source && typeof source.id === 'string' && /^https:\/\//.test(source.url || '') && /^(rss|audioaz|wordpress)$/.test(source.type || '');
+      });
+    });
+    return tabs.length ? tabs : null;
+  }
+  function withRecent(tabs) {
+    if (!recent.length) return tabs;
+    return [{id: 'recent', title: 'Đang nghe', recent: true, sources: []}].concat(tabs);
+  }
+  // The first play adds "Đang nghe" in front without rebuilding the list the user is in.
+  function ensureRecentTab() {
+    if (!state.tabs.length || state.tabs[0].recent) return;
+    state.tabs.unshift({id: 'recent', title: 'Đang nghe', recent: true, sources: []});
+    state.tab += 1;
+    renderTabs();
+  }
+  function setTabs(tabs) {
+    var currentId = state.tabs[state.tab] && state.tabs[state.tab].id;
+    state.tabs = withRecent(tabs);
+    state.tab = 0;
+    state.tabs.forEach(function (tab, index) { if (tab.id === currentId) state.tab = index; });
+    renderTabs(); openTab(state.tab, false);
+  }
+  function loadSources() {
+    load('sources.json', {timeout: 5000}, function (error, text) {
+      var local = null;
+      try { local = validTabs(JSON.parse(text)); } catch (problem) { local = null; }
+      if (local) { state.baseTabs = local; setTabs(local); }
+      if (PREVIEW) return; // the preview edits the bundled file; GitHub would hide local changes
+      load(REMOTE_SOURCES + '?t=' + Math.floor(Date.now() / 600000), {timeout: 8000}, function (remoteError, remoteText) {
+        var remote = null;
+        try { remote = remoteError ? null : validTabs(JSON.parse(remoteText)); } catch (problem) { remote = null; }
+        if (remote && JSON.stringify(remote) !== JSON.stringify(state.baseTabs)) { state.baseTabs = remote; setTabs(remote); }
+        if (!remote && !local) toast('Không tải được danh sách nguồn.');
+      });
+    });
+  }
+
+  // ---- Browse rendering ----
+  function el(tagName, className, text) {
+    var node = document.createElement(tagName);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function renderTabs() {
+    tabsEl.textContent = '';
+    state.tabs.forEach(function (tab, index) {
+      var button = el('button', 'tab' + (index === state.tab ? ' on' : ''), tab.title);
+      button.addEventListener('focus', function () { if (state.tab !== index) openTab(index, true); });
+      tabsEl.appendChild(button);
+    });
+  }
+  function monogram(title) {
+    var words = title.replace(/[^\wÀ-ỹ ]/g, ' ').split(/\s+/).filter(Boolean);
+    return (words[0] ? words[0].charAt(0) : '') + (words[1] ? words[1].charAt(0) : '');
+  }
+  function sourceCard(source, index) {
+    var button = el('button', 'source'), art = el('span', 'art tone-' + (index % 5)), name = el('span', 'name', source.title);
+    art.appendChild(el('span', 'mono', monogram(source.title.split('·').pop())));
+    button.appendChild(art); button.appendChild(name);
+    var hit = cached('s:' + source.id);
+    if (hit && hit.image) setArt(button, hit.image);
+    button.addEventListener('focus', function () { state.zone = 'sources'; if (state.source !== index || !state.list.length) selectSource(index); });
+    button.addEventListener('click', function () { var first = listEl.querySelector('button'); if (first) first.focus(); });
+    return button;
+  }
+  function setArt(button, image) {
+    var art = button.querySelector('.art');
+    if (!image || !art) return;
+    art.style.backgroundImage = cssUrl(image);
+    button.classList.add('has-art');
+  }
+  function openTab(index, keepFocus) {
+    state.tab = index; state.source = 0; state.stack = [];
+    Array.prototype.forEach.call(tabsEl.children, function (node, at) { node.classList.toggle('on', at === index); });
+    sourcesEl.textContent = '';
+    var tab = state.tabs[index];
+    if (!tab) return;
+    if (tab.recent) { showList('Đang nghe', recent.slice(), null); sourcesEl.hidden = true; return; }
+    sourcesEl.hidden = false;
+    tab.sources.forEach(function (source, at) { sourcesEl.appendChild(sourceCard(source, at)); });
+    selectSource(0);
+    if (!keepFocus && state.view === 'browse' && sourcesEl.firstChild) sourcesEl.firstChild.focus();
+  }
+  function currentSource() { var tab = state.tabs[state.tab]; return tab && !tab.recent ? tab.sources[state.source] : null; }
+  function selectSource(index, folder) {
+    var source = state.tabs[state.tab] && state.tabs[state.tab].sources[index], token = ++loadToken;
+    if (!source) return;
+    state.source = index;
+    Array.prototype.forEach.call(sourcesEl.children, function (node, at) { node.classList.toggle('on', at === index); });
+    if (!folder) state.stack = [];
+    showList(folder ? folder.title : source.title, null, source, 'Đang tải…');
+    loadSource(source, folder, function (error, value) {
+      if (token !== loadToken) return; // the user moved on
+      if (error) { showList(folder ? folder.title : source.title, [], source, 'Không tải được nguồn này. Thử lại sau.'); return; }
+      // Some feeds (VnExpress) have no show art: the newest episode's picture stands in for it.
+      var art = value.image || (value.items[0] && value.items[0].image);
+      if (!folder && art && sourcesEl.children[index]) { setArt(sourcesEl.children[index], art); if (!value.image) value.image = art; }
+      showList(folder ? folder.title : source.title, value.items.map(function (item) {
+        return {title: item.title, url: item.url, date: item.date, duration: item.duration, image: item.image || value.image,
+          folder: !!item.folder, tracks: item.tracks, id: item.id, sourceId: source.id, sourceTitle: source.title};
+      }), source);
+    });
+  }
+  function showList(title, items, source, message) {
+    state.list = items || []; state.listTitle = title;
+    $('list-title').textContent = state.stack.length ? '‹ ' + title : title;
+    listEl.textContent = '';
+    if (!items) { listEl.appendChild(el('p', 'empty', message || '')); return; }
+    if (!items.length) { listEl.appendChild(el('p', 'empty', message || 'Chưa có bài nào.')); return; }
+    items.forEach(function (item, index) {
+      var button = el('button', 'item'), text = el('span', 'text'), thumb = el('span', 'thumb');
+      if (item.image) thumb.style.backgroundImage = cssUrl(item.image);
+      text.appendChild(el('span', 't', item.title));
+      text.appendChild(el('span', 's', player.subtitle(item, player.percent(progress, item.url), Date.now())));
+      button.appendChild(thumb); button.appendChild(text);
+      if (item.folder) button.appendChild(el('span', 'chev', '›'));
+      if (now.entry && now.entry.url && now.entry.url === item.url) button.classList.add('playing');
+      button.addEventListener('focus', function () { state.zone = 'list'; try { button.scrollIntoView({block: 'nearest'}); } catch (error) { /* old engine */ } });
+      button.addEventListener('click', function () { activate(index, source); });
+      listEl.appendChild(button);
+    });
+  }
+  function activate(index, source) {
+    var item = state.list[index];
+    if (!item) return;
+    if (item.folder) {
+      state.stack.push({title: state.listTitle, list: state.list, focus: index});
+      var src = source || findSource(item.sourceId);
+      if (!src) return;
+      showList(item.title, null, src, 'Đang mở…');
+      listEl.focus(); // keep focus inside the list while the chapters load
+      var token = ++loadToken;
+      loadSource(src, item, function (error, value) {
+        if (token !== loadToken) return;
+        if (error) { showList(item.title, [], src, 'Không mở được sách này.'); return; }
+        showList(item.title, value.items.map(function (track) {
+          return {title: track.title, url: track.url, image: item.image, sourceId: src.id, sourceTitle: item.title};
+        }), src);
+        if (listEl.firstChild && listEl.firstChild.focus) listEl.firstChild.focus();
+      });
+      return;
+    }
+    play(state.list, index, source || findSource(item.sourceId));
+  }
+  function findSource(id) {
+    var found = null;
+    state.tabs.forEach(function (tab) { (tab.sources || []).forEach(function (source) { if (source.id === id) found = source; }); });
+    return found;
+  }
+  function leaveFolder() {
+    var parent = state.stack.pop();
+    if (!parent) return false;
+    loadToken += 1;
+    showList(parent.title, parent.list, currentSource());
+    var target = listEl.children[parent.focus];
+    if (target && target.focus) target.focus();
+    return true;
+  }
+
+  // ---- Playback ----
+  function play(list, index, source) {
+    var entry = list[index];
+    if (!entry || !entry.url) return;
+    saveProgressNow();
+    // From "Đang nghe" the list is a history, not a series: never auto-advance through it.
+    var fromRecent = state.tabs[state.tab] && state.tabs[state.tab].recent && list === state.list;
+    now = {entry: entry, list: list, index: index, source: source, next: fromRecent ? 'none' : source && source.next};
+    audio.src = viaProxy(entry.url);
+    var start = player.resumeAt(progress, entry.url);
+    audio.addEventListener('loadedmetadata', function seekOnce() {
+      audio.removeEventListener('loadedmetadata', seekOnce);
+      if (start) { try { audio.currentTime = start; } catch (error) { /* not seekable yet */ } }
+    });
+    var attempt = audio.play();
+    if (attempt && attempt.catch) attempt.catch(function () { toast('TV chưa phát được bài này.'); });
+    recent = player.addRecent(recent, {title: entry.title, url: entry.url, image: entry.image, duration: entry.duration,
+      date: entry.date, sourceId: entry.sourceId, sourceTitle: entry.sourceTitle || (source && source.title) || ''});
+    writeJson(RECENT_KEY, recent);
+    ensureRecentTab();
+    showPlayer();
+    updateNow();
+    markPlaying();
+  }
+  function markPlaying() {
+    Array.prototype.forEach.call(listEl.children, function (node, at) {
+      if (node.classList) node.classList.toggle('playing', !!(state.list[at] && now.entry && state.list[at].url === now.entry.url));
+    });
+  }
+  function updateNow() {
+    var pill = $('now');
+    pill.hidden = !now.entry;
+    if (!now.entry) return;
+    $('now-title').textContent = now.entry.title;
+    pill.classList.toggle('paused', audio.paused);
+    $('p-state').textContent = audio.paused ? 'Tạm dừng' : '';
+  }
+  function saveProgressNow() {
+    if (!now.entry || !(audio.currentTime > 0)) return;
+    progress = player.saveProgress(progress, now.entry.url, audio.currentTime, audio.duration || now.entry.duration, Date.now());
+    writeJson(PROGRESS_KEY, progress);
+  }
+  function showPlayer() {
+    var entry = now.entry, image = entry.image || '';
+    state.view = 'player';
+    $('browse').hidden = true; $('player').hidden = false;
+    $('backdrop').style.backgroundImage = image ? cssUrl(image) : '';
+    $('cover').style.backgroundImage = image ? cssUrl(image) : '';
+    $('player').classList.toggle('no-art', !image);
+    $('w-title').textContent = entry.title;
+    $('p-source').textContent = entry.sourceTitle || (now.source && now.source.title) || '';
+    $('p-title').textContent = entry.title;
+    wake();
+  }
+  function showBrowse() {
+    state.view = 'browse';
+    $('player').hidden = true; $('browse').hidden = false;
+    clearTimeout(calmTimer);
+    var target = state.zone === 'list' ? listEl.querySelector('.item.playing') || listEl.firstChild : sourcesEl.children[state.source];
+    (target && target.focus ? target : $('now')).focus();
+  }
+  // Any key in the player brings the controls back; after a few quiet seconds only the picture stays.
+  function wake() {
+    $('player').classList.remove('calm');
+    clearTimeout(calmTimer);
+    calmTimer = setTimeout(function () { if (state.view === 'player' && !audio.paused) $('player').classList.add('calm'); }, CALM_MS);
+  }
+  function toggle() {
+    if (!now.entry) return;
+    if (audio.paused) { var attempt = audio.play(); if (attempt && attempt.catch) attempt.catch(function () { toast('TV chưa phát được bài này.'); }); }
+    else audio.pause();
+  }
+  function seekBy(delta) {
+    if (!now.entry) return;
+    try { audio.currentTime = player.seek(audio.currentTime, delta, audio.duration); } catch (error) { /* stream not seekable */ }
+  }
+  function step(direction) {
+    var mode = direction > 0 ? 'list' : 'newer';
+    var next = direction === 0 ? player.nextIndex(now.list.length, now.index, now.next) :
+      player.nextIndex(now.list.length, now.index, mode);
+    if (next >= 0) play(now.list, next, now.source);
+    else if (direction === 0) { updateNow(); }
+  }
+  function cycleSleep() {
+    sleepMinutes = player.nextSleep(sleepMinutes);
+    clearTimeout(sleepTimer);
+    var label = $('p-sleep');
+    label.textContent = player.sleepLabel(sleepMinutes); label.hidden = !sleepMinutes;
+    toast(player.sleepLabel(sleepMinutes));
+    if (sleepMinutes) {
+      sleepTimer = setTimeout(function () { audio.pause(); sleepMinutes = 0; label.hidden = true; toast('Đã tự dừng theo hẹn giờ.'); }, sleepMinutes * 60000);
+    }
+  }
+  audio.addEventListener('timeupdate', function () {
+    var duration = audio.duration || (now.entry && now.entry.duration) || 0;
+    $('p-time').textContent = player.formatTime(audio.currentTime);
+    $('w-time').textContent = player.formatTime(audio.currentTime) + ' / ' + player.formatTime(duration);
+    $('p-dur').textContent = player.formatTime(duration);
+    var ratio = duration ? Math.min(1, audio.currentTime / duration) : 0;
+    $('p-fill').style.transform = 'scaleX(' + ratio + ')';
+    $('p-fill').style.webkitTransform = 'scaleX(' + ratio + ')';
+    if (Date.now() - saveAt > 10000) { saveAt = Date.now(); saveProgressNow(); }
+  });
+  audio.addEventListener('play', function () { updateNow(); wake(); });
+  audio.addEventListener('pause', function () { updateNow(); saveProgressNow(); $('player').classList.remove('calm'); });
+  audio.addEventListener('ended', function () {
+    if (now.entry) { progress = player.saveProgress(progress, now.entry.url, audio.duration, audio.duration, Date.now()); writeJson(PROGRESS_KEY, progress); }
+    step(0);
+  });
+  audio.addEventListener('error', function () { if (now.entry) toast('Không phát được bài này (nguồn có thể đã đổi hoặc chặn).'); });
+
+  // ---- Keys ----
+  function registerMediaKeys() {
+    if (!tv || !tv.tvinputdevice) return;
+    var supported = {};
+    try { tv.tvinputdevice.getSupportedKeys().forEach(function (key) { supported[key.name] = key.code; }); } catch (error) { return; }
+    MEDIA_KEYS.forEach(function (name) {
+      if (!Object.prototype.hasOwnProperty.call(supported, name)) return;
+      try { tv.tvinputdevice.registerKey(name); keyNames[supported[name]] = name; } catch (error) { /* skip */ }
+    });
+  }
+  function keyName(event) {
+    if (keyNames[event.keyCode]) return keyNames[event.keyCode];
+    if (event.keyCode === 10009) return 'Back';
+    return event.key === 'Escape' || event.key === 'Backspace' ? 'Back' : event.key;
+  }
+  function focusables(container) { return Array.prototype.filter.call(container.children, function (node) { return node.focus && node.tagName === 'BUTTON'; }); }
+  function moveWithin(items, key) {
+    var at = items.indexOf(document.activeElement);
+    var to = at < 0 ? 0 : key === 'ArrowLeft' || key === 'ArrowUp' ? Math.max(0, at - 1) : Math.min(items.length - 1, at + 1);
+    if (items[to]) items[to].focus();
+    return to !== at;
+  }
+  function browseKey(name) {
+    var active = document.activeElement, inTabs = active && active.parentNode === tabsEl;
+    var inTop = active === $('now') || inTabs, inSources = active && active.parentNode === sourcesEl;
+    var inList = active && (active.parentNode === listEl || active === listEl);
+    if (name === 'Back') {
+      // Inside a book, Back always climbs out first, even while its chapter list is still loading.
+      if ((inList || !active || active === document.body) && leaveFolder()) return;
+      if (inList || !active || active === document.body) { (sourcesEl.hidden ? tabsEl.children[state.tab] : sourcesEl.children[state.source] || tabsEl.children[state.tab]).focus(); return; }
+      if (inSources) { tabsEl.children[state.tab].focus(); return; }
+      exitApp(); return;
+    }
+    if (name === 'Enter') { if (active && active.click) active.click(); return; }
+    if (inTop) {
+      var top = focusables(tabsEl); if (!$('now').hidden) top.push($('now'));
+      if (name === 'ArrowLeft' || name === 'ArrowRight') moveWithin(top, name);
+      else if (name === 'ArrowDown') { var first = sourcesEl.hidden ? listEl.querySelector('button') : sourcesEl.children[state.source]; if (first) first.focus(); }
+      return;
+    }
+    if (inSources) {
+      if (name === 'ArrowLeft' || name === 'ArrowRight') moveWithin(focusables(sourcesEl), name);
+      else if (name === 'ArrowUp') tabsEl.children[state.tab].focus();
+      else if (name === 'ArrowDown') { var item = listEl.querySelector('button'); if (item) item.focus(); }
+      return;
+    }
+    if (inList) {
+      var items = focusables(listEl);
+      if (name === 'ArrowUp' && items.indexOf(active) === 0) { (sourcesEl.hidden ? tabsEl.children[state.tab] : sourcesEl.children[state.source]).focus(); return; }
+      if (name === 'ArrowUp' || name === 'ArrowDown') moveWithin(items, name);
+      return;
+    }
+    if (tabsEl.children[state.tab]) tabsEl.children[state.tab].focus();
+  }
+  function playerKey(name) {
+    wake();
+    if (name === 'Back') { showBrowse(); return; }
+    if (name === 'Enter' || name === 'MediaPlayPause') toggle();
+    else if (name === 'MediaPlay') { if (audio.paused) toggle(); }
+    else if (name === 'MediaPause') { if (!audio.paused) toggle(); }
+    else if (name === 'ArrowLeft' || name === 'MediaRewind') seekBy(-SEEK);
+    else if (name === 'ArrowRight' || name === 'MediaFastForward') seekBy(SEEK);
+    else if (name === 'ArrowDown') cycleSleep();
+    else if (name === 'MediaTrackNext') step(1);
+    else if (name === 'MediaTrackPrevious') step(-1);
+    else if (name === 'MediaStop') { audio.pause(); showBrowse(); }
+  }
+  document.addEventListener('keydown', function (event) {
+    var name = keyName(event);
+    if (/^(Arrow|Enter$|Back$|Media)/.test(name)) event.preventDefault();
+    if (state.view === 'player') { playerKey(name); return; }
+    if (/^Media/.test(name)) { if (name === 'MediaPlayPause' || name === 'MediaPlay' || name === 'MediaPause') toggle(); return; }
+    browseKey(name);
+  });
+  $('now').addEventListener('click', function () { if (now.entry) showPlayer(); });
+  function exitApp() {
+    saveProgressNow();
+    try { tv.application.getCurrentApplication().exit(); } catch (error) { toast('Bản xem trước · Thoát app'); }
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) saveProgressNow(); });
+  window.addEventListener('beforeunload', saveProgressNow);
+
+  function clock() {
+    var date = new Date();
+    $('clock').textContent = ('0' + date.getHours()).slice(-2) + ':' + ('0' + date.getMinutes()).slice(-2);
+  }
+  clock(); setInterval(clock, 30000);
+  if (PREVIEW) $('mode').textContent = 'BẢN XEM TRƯỚC TRÊN MÁY TÍNH · ÂM THANH QUA PROXY CỤC BỘ';
+  registerMediaKeys();
+  loadSources();
+}());

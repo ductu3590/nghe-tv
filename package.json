@@ -1,0 +1,13 @@
+{
+  "name": "nghe-tv",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nghe: a minimal Samsung Tizen TV app for listening to Vietnamese news audio, podcasts and audiobooks",
+  "scripts": {
+    "test": "node tests/run.cjs",
+    "preview": "node tools/preview.cjs",
+    "sync": "node tools/sync_probe.cjs"
+  },
+  "license": "MIT",
+  "engines": { "node": ">=18" }
+}
