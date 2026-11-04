@@ -122,3 +122,5 @@ Bản ký profile `CleanYourTizen2` đã cài trên cùng QA55LS03BAKXXV / Tizen
 | Sau: JPEG nền, lượt lặp | 17 ms | 51 ms | 68 ms | 0/112 |
 
 Số mẫu và lịch phím thực tế khác nhau khi luồng giao diện bận; các số là kết quả của những lượt này, không phải bảo đảm tốc độ. Trong lượt lặp sau sửa, thời gian xử lý đồng bộ tám sự kiện phím có trung vị 58 ms, lớn nhất 83 ms, vì vậy vẫn còn khựng cần nghiên cứu riêng. Chưa thử đánh giá cảm nhận bằng remote vật lý.
+
+- Chủ TV xác nhận PASS sau khi kiểm tra giao diện thực tế: app tải nhanh hơn rất nhiều với nền ảnh tĩnh (2026-11-04).
