@@ -6,7 +6,9 @@ App nghe tin tức, podcast và sách nói cho TV Samsung Tizen, tối giản th
 - **Feed lớn vẫn nhẹ.** App chỉ đọc phần đầu của feed (VOV Thời sự dài ~30 MB, app tải ~100 KB) cho đủ 30 bài mới nhất rồi dừng.
 - **Màn đang nghe:** ảnh bìa làm hình nền mờ, tiêu đề, thanh tiến trình. Sau 6 giây giao diện mờ dần, chỉ còn hình và một dòng nhỏ.
 - **Remote:** OK hoặc Play/Pause để tạm dừng, ‹ › hoặc Rewind/FastForward để tua 15 giây, ▾ để hẹn giờ tự dừng (15/30/60 phút), Back để về danh sách (âm thanh vẫn phát).
-- **Nghe tiếp:** nhớ vị trí đã nghe trên TV; tab **Đang nghe** liệt kê 20 bài gần nhất; truyện dài và sách tự chuyển sang phần kế tiếp.
+- **Nghe tiếp:** nhớ vị trí đã nghe trên TV; tab **Đang nghe** liệt kê 20 bài gần nhất. **Yêu thích** lưu nguồn và bài; **Nghe tiếp** là hàng chờ phát. Tất cả chỉ lưu trên TV.
+- **Điều khiển:** OK trên nguồn mở tùy chọn yêu thích, ghim và đổi thứ tự; › trên bài mở tùy chọn yêu thích, hàng chờ và đánh dấu đã nghe/chưa nghe. Trong màn nghe, ▴ đổi tốc độ (TV sẽ kiểm tra xem thực sự hỗ trợ hay không), ▾ chọn hẹn giờ.
+- **Nghe khi ngủ:** tùy chọn hết bài dừng phát và chuyển màn hình sang màu đen; Back hủy. Màn đen không tắt TV: TV và đèn nền vẫn bật.
 - **Sách nói tổng hợp (AudioAZ):** chỉ dùng cá nhân; trang có thể đổi cấu trúc hoặc chặn bất cứ lúc nào. Sách Nói Việt Nam đã bỏ vì TV không phát được file của trang này (lớp chống bot).
 
 Không chiếm phím Home, Power hay phím thương hiệu; chỉ đăng ký các phím media mà TV báo là hỗ trợ.

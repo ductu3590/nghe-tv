@@ -5,7 +5,7 @@ const path = require('node:path');
 const read = (name) => fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
 const preview = require('../tools/preview.cjs');
 
-const SCRIPTS = ['app/app.js', 'app/feeds.js', 'app/player.js', 'app/search.js', 'app/images.js', 'probe/probe.js'];
+const SCRIPTS = ['app/app.js', 'app/feeds.js', 'app/player.js', 'app/search.js', 'app/images.js', 'app/library.js', 'app/organize.js', 'probe/probe.js'];
 
 test('never takes Home, Power or brand keys; only registers media keys the TV reports as supported', () => {
   for (const file of SCRIPTS) {
@@ -105,4 +105,14 @@ test('browse background uses a bundled JPEG and retains a fallback color', () =>
   assert.equal(image.readUInt16BE(0), 0xffd8);
   assert.equal(image.readUInt16BE(image.length - 2), 0xffd9);
   assert.ok(image.length < 200000, 'background should stay lightweight');
+});
+
+test('sleep blackout and action menu use edges supported by Tizen 6.5', () => {
+  const css = read('app/style.css');
+  for (const selector of ['sleep-black', 'actions-overlay']) {
+    const rule = css.match(new RegExp('\\.' + selector + '\\{([^}]*)\\}'))[1];
+    assert.match(rule, /position:fixed/);
+    for (const edge of ['top', 'right', 'bottom', 'left']) assert.match(rule, new RegExp(edge + ':0'));
+    assert.doesNotMatch(rule, /\binset:/);
+  }
 });

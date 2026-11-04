@@ -104,3 +104,12 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .search-bar{margin:12px 0 20px}
 .search-bar input{width:100%;padding:20px 24px;border:2px solid rgba(255,255,255,.3);border-radius:18px;background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:27px}
 .search-bar input:focus{outline:none;border-color:#fff}
+
+.sleep-black{position:fixed;left:0;top:0;right:0;bottom:0;z-index:20;background:#000}
+
+.browse-hint{margin:0 0 2px;font-size:15px;color:rgba(255,255,255,.5)}
+.actions-overlay{position:fixed;left:0;top:0;right:0;bottom:0;z-index:15;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65)}
+.actions-panel{width:560px;padding:26px;border-radius:24px;background:#252b42;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.actions-panel p{font-size:24px;margin:0 0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.actions-panel button{display:block;width:100%;padding:14px 18px;border-radius:12px;font-size:21px}
+.actions-panel button:focus{outline:none;background:#fff;color:#141a2b}

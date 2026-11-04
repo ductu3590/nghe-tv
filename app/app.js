@@ -3,7 +3,7 @@
 // Never registers Home, Power or brand keys; only media keys the TV reports as supported.
 (function () {
   'use strict';
-  var feeds = window.NgheFeeds, player = window.NghePlayer, search = window.NgheSearch, tv = window.tizen;
+  var feeds = window.NgheFeeds, player = window.NghePlayer, search = window.NgheSearch, library = window.NgheLibrary, organize = window.NgheOrganize, tv = window.tizen;
   var $ = function (id) { return document.getElementById(id); };
   var REMOTE_SOURCES = 'https://raw.githubusercontent.com/ductu3590/nghe-tv/main/app/sources.json';
   var PREVIEW = !tv && /^http/.test(location.protocol); // desktop preview: go through the loopback dev proxy
@@ -15,7 +15,7 @@
   var state = {tabs: [], tab: 0, source: 0, list: [], stack: [], listTitle: '', view: 'browse', zone: 'sources'};
   var now = {entry: null, list: [], index: -1, source: null};
   var searchData = {}, searchLoading = false, searchTimer = null, lastBrowseId = null;
-  var keyNames = {}, memory = {}, toastTimer = null, calmTimer = null, sleepTimer = null, sleepMinutes = 0, saveAt = 0, loadToken = 0;
+  var keyNames = {}, memory = {}, toastTimer = null, calmTimer = null, sleepTimer = null, sleepMinutes = 0, blackTimer = null, saveAt = 0, loadToken = 0;
 
   // ---- Small storage helpers: every access may throw (private mode, quota) and must never break playback ----
   function readJson(key, fallback) {
@@ -25,6 +25,13 @@
   var progress = readJson(PROGRESS_KEY, {}), recent = readJson(RECENT_KEY, []);
   if (!progress || typeof progress !== 'object' || Array.isArray(progress)) progress = {};
   if (!Array.isArray(recent)) recent = [];
+  var favoriteSources = library.sourceIds(readJson('nghe-favorite-sources', []));
+  var favoriteItems = library.items(readJson('nghe-favorite-items', []), false);
+  var queue = library.items(readJson('nghe-queue', []), true);
+  var playedMarks = readJson('nghe-played', {}), sourcePrefs = readJson('nghe-source-order', {});
+  if (!sourcePrefs || typeof sourcePrefs !== 'object' || Array.isArray(sourcePrefs)) sourcePrefs = {};
+  var actionReturn = null;
+
 
   function toast(text) {
     var node = $('toast'); node.textContent = text; node.hidden = false;
@@ -104,7 +111,8 @@
     return tabs.length ? tabs : null;
   }
   function withRecent(tabs) {
-    var all = tabs.concat([{id: 'search', title: 'Tìm', search: true, sources: []}]);
+    var ordered = tabs.map(function (tab) { return {id: tab.id, title: tab.title, sources: organize.orderSources(tab.sources, sourcePrefs[tab.id])}; });
+    var all = [{id: 'favorites', title: 'Yêu thích', favorites: true, sources: []}, {id: 'queue', title: 'Nghe tiếp', queue: true, sources: []}].concat(ordered, [{id: 'search', title: 'Tìm', search: true, sources: []}]);
     if (!recent.length) return all;
     return [{id: 'recent', title: 'Đang nghe', recent: true, sources: []}].concat(all);
   }
@@ -118,7 +126,7 @@
   function setTabs(tabs) {
     var currentId = state.tabs[state.tab] && state.tabs[state.tab].id;
     state.tabs = withRecent(tabs);
-    state.tab = 0;
+    state.tab = recent.length ? 0 : 2;
     state.tabs.forEach(function (tab, index) { if (tab.id === currentId) state.tab = index; });
     renderTabs(); openTab(state.tab, false);
   }
@@ -163,8 +171,8 @@
     button.appendChild(art); button.appendChild(name);
     var hit = cached('s:' + source.id);
     if (hit && hit.image) setArt(button, hit.image);
-    button.addEventListener('focus', function () { state.zone = 'sources'; if (state.source !== index || !state.list.length) selectSource(index); scheduleImages(); });
-    button.addEventListener('click', function () { var first = listEl.querySelector('button'); if (first) first.focus(); });
+    button.addEventListener('focus', function () { state.zone = 'sources'; if (state.favoriteLanding || state.source !== index || !state.list.length) selectSource(index); scheduleImages(); });
+    button.addEventListener('click', function () { sourceActions(source); });
     return button;
   }
   function setArt(button, image) {
@@ -255,7 +263,7 @@
   listEl.addEventListener('scroll', scheduleImages);
   sourcesEl.addEventListener('scroll', scheduleImages);
   function openTab(index, keepFocus) {
-    state.tab = index; state.source = 0; state.stack = [];
+    state.tab = index; state.source = 0; state.stack = []; state.favoriteLanding = false;
     Array.prototype.forEach.call(tabsEl.children, function (node, at) { node.classList.toggle('on', at === index); });
     sourcesEl.textContent = '';
     var tab = state.tabs[index];
@@ -265,6 +273,13 @@
     if (!tab.search) lastBrowseId = tab.id;
     if (tab.search) { loadToken += 1; sourcesEl.hidden = true; startSearch(); renderSearch(); return; }
     if (tab.recent) { showList('Đang nghe', recent.slice(), null); sourcesEl.hidden = true; return; }
+    if (tab.queue) { loadToken += 1; sourcesEl.hidden = true; showList('Nghe tiếp', queue.slice(), null, 'Chưa có bài trong hàng chờ.'); return; }
+    if (tab.favorites) {
+      loadToken += 1; state.favoriteLanding = true; tab.sources = favoriteSources.map(findSource).filter(Boolean);
+      sourcesEl.hidden = !tab.sources.length;
+      tab.sources.forEach(function (source, at) { sourcesEl.appendChild(sourceCard(source, at)); });
+      showList('Bài yêu thích', favoriteItems.slice(), null, 'Chưa có bài yêu thích.'); return;
+    }
     sourcesEl.hidden = false;
     tab.sources.forEach(function (source, at) { sourcesEl.appendChild(sourceCard(source, at)); });
     selectSource(0);
@@ -274,7 +289,7 @@
   function selectSource(index, folder) {
     var source = state.tabs[state.tab] && state.tabs[state.tab].sources[index], token = ++loadToken;
     if (!source) return;
-    state.source = index;
+    state.source = index; state.favoriteLanding = false;
     Array.prototype.forEach.call(sourcesEl.children, function (node, at) { node.classList.toggle('on', at === index); });
     if (!folder) state.stack = [];
     showList(folder ? folder.title : source.title, null, source, 'Đang tải…');
@@ -302,7 +317,10 @@
       var button = el('button', 'item'), text = el('span', 'text'), thumb = el('span', 'thumb');
       if (item.image) thumb.setAttribute('data-image', item.image);
       text.appendChild(el('span', 't', item.title));
-      text.appendChild(el('span', 's', player.subtitle(item, player.percent(progress, item.url), Date.now())));
+      var pct = player.percent(progress, item.url), done = organize.isPlayed(playedMarks, item.url, pct);
+      var subtitle = player.subtitle(item, done || pct >= 97 ? 0 : pct, Date.now());
+      if (item.url && !item.folder) subtitle += (subtitle ? ' · ' : '') + (done ? 'Đã nghe' : 'Chưa nghe');
+      text.appendChild(el('span', 's', subtitle));
       button.appendChild(thumb); button.appendChild(text);
       if (item.folder) button.appendChild(el('span', 'chev', '›'));
       if (now.entry && now.entry.url && now.entry.url === item.url) button.classList.add('playing');
@@ -367,7 +385,7 @@
     if (item.searchSource) {
       var targetTab = -1;
       state.tabs.forEach(function (tab, at) { if (tab.id === state.baseTabs[item.sourceTab].id) targetTab = at; });
-      if (targetTab >= 0) { openTab(targetTab, false); selectSource(item.sourceIndex); if (sourcesEl.children[item.sourceIndex]) sourcesEl.children[item.sourceIndex].focus(); }
+      if (targetTab >= 0) { openTab(targetTab, false); var at = -1; state.tabs[targetTab].sources.forEach(function (src, i) { if (src.id === item.searchSource) at = i; }); if (at >= 0) { selectSource(at); if (sourcesEl.children[at]) sourcesEl.children[at].focus(); } }
       return;
     }
     if (item.folder) {
@@ -387,11 +405,12 @@
       });
       return;
     }
+    if (state.tabs[state.tab].queue) { queue = library.removeQueued(queue, item.url); writeJson('nghe-queue', queue); }
     play(state.list, index, source || findSource(item.sourceId));
   }
   function findSource(id) {
     var found = null;
-    state.tabs.forEach(function (tab) { (tab.sources || []).forEach(function (source) { if (source.id === id) found = source; }); });
+    (state.baseTabs || []).forEach(function (tab) { (tab.sources || []).forEach(function (source) { if (source.id === id) found = source; }); });
     return found;
   }
   function leaveFolder() {
@@ -404,13 +423,84 @@
     return true;
   }
 
+  // Context actions are reachable with OK on a source or Right on an episode.
+  function closeActions() {
+    $('actions').hidden = true;
+    if (actionReturn && document.documentElement.contains(actionReturn)) actionReturn.focus();
+    else if (tabsEl.children[state.tab]) tabsEl.children[state.tab].focus();
+  }
+  function actions(title, choices) {
+    actionReturn = document.activeElement;
+    $('actions-title').textContent = title;
+    var box = $('actions-list'); box.textContent = '';
+    choices.forEach(function (choice) {
+      var button = el('button', '', choice.label);
+      button.addEventListener('click', function () { closeActions(); choice.run(); });
+      box.appendChild(button);
+    });
+    var cancel = el('button', '', 'Đóng'); cancel.addEventListener('click', closeActions); box.appendChild(cancel);
+    $('actions').hidden = false; box.firstChild.focus();
+  }
+  function actionKey(name, event) {
+    if (/^(Arrow|Enter$|Back$)/.test(name)) event.preventDefault();
+    if (name === 'Back' || name === 'ArrowLeft') closeActions();
+    else if (name === 'ArrowUp' || name === 'ArrowDown') moveWithin(focusables($('actions-list')), name);
+    else if (name === 'Enter' && document.activeElement.click) document.activeElement.click();
+  }
+  function sourceActions(source) {
+    var tab = state.tabs[state.tab], isFavorite = favoriteSources.indexOf(source.id) >= 0;
+    var choices = [{label: 'Mở danh sách bài', run: function () { var first = listEl.querySelector('button'); if (first) first.focus(); }},
+      {label: isFavorite ? 'Bỏ nguồn yêu thích' : 'Thêm nguồn yêu thích', run: function () {
+        favoriteSources = library.toggleSource(favoriteSources, source.id); writeJson('nghe-favorite-sources', favoriteSources);
+        toast(isFavorite ? 'Đã bỏ nguồn yêu thích.' : 'Đã thêm nguồn yêu thích.');
+        if (tab.favorites) openTab(state.tab, true);
+      }}];
+    if (!tab.favorites && !tab.recent && !tab.queue && !tab.search) {
+      var pref = sourcePrefs[tab.id] || {}, pinned = organize.isPinned(pref, source.id);
+      function applyPref(updated) {
+        sourcePrefs[tab.id] = updated; writeJson('nghe-source-order', sourcePrefs);
+        tab.sources = organize.orderSources(tab.sources, updated);
+        var at = 0; tab.sources.forEach(function (src, index) { if (src.id === source.id) at = index; });
+        openTab(state.tab, true); if (sourcesEl.children[at]) sourcesEl.children[at].focus();
+      }
+      choices.push({label: pinned ? 'Bỏ ghim nguồn' : 'Ghim nguồn lên đầu', run: function () { applyPref(organize.setPinned(pref, source.id, !pinned)); }});
+      choices.push({label: 'Chuyển nguồn sang trái', run: function () { applyPref(organize.moveSource(tab.sources, pref, source.id, -1)); }});
+      choices.push({label: 'Chuyển nguồn sang phải', run: function () { applyPref(organize.moveSource(tab.sources, pref, source.id, 1)); }});
+    }
+    actions(source.title, choices);
+  }
+  function itemActions(item) {
+    if (!item || !item.url || item.searchSource) return;
+    var isFavorite = favoriteItems.some(function (entry) { return entry.url === item.url; });
+    var queued = queue.some(function (entry) { return entry.url === item.url; });
+    var done = organize.isPlayed(playedMarks, item.url, player.percent(progress, item.url));
+    var choices = [{label: isFavorite ? 'Bỏ bài yêu thích' : 'Thêm bài yêu thích', run: function () {
+      favoriteItems = library.toggleItem(favoriteItems, item); writeJson('nghe-favorite-items', favoriteItems);
+      toast(isFavorite ? 'Đã bỏ bài yêu thích.' : 'Đã thêm bài yêu thích.');
+      if (state.tabs[state.tab].favorites) openTab(state.tab, true);
+    }}];
+    if (!item.folder) {
+      choices.push({label: queued ? 'Bỏ khỏi hàng chờ' : 'Thêm vào hàng chờ', run: function () {
+        queue = queued ? library.removeQueued(queue, item.url) : library.enqueue(queue, item); writeJson('nghe-queue', queue);
+        toast(queued ? 'Đã bỏ khỏi hàng chờ.' : 'Đã thêm vào hàng chờ.');
+        if (state.tabs[state.tab].queue) openTab(state.tab, true);
+      }});
+      choices.push({label: done ? 'Đánh dấu chưa nghe' : 'Đánh dấu đã nghe', run: function () {
+        playedMarks = organize.setPlayed(playedMarks, item.url, !done, Date.now()); writeJson('nghe-played', playedMarks);
+        var at = state.list.indexOf(item); showList(state.listTitle, state.list.slice(), currentSource());
+        if (listEl.children[at]) listEl.children[at].focus();
+      }});
+    }
+    actions(item.title, choices);
+  }
+
   // ---- Playback ----
   function play(list, index, source) {
     var entry = list[index];
     if (!entry || !entry.url) return;
     saveProgressNow();
     // From "Đang nghe" the list is a history, not a series: never auto-advance through it.
-    var fromRecent = state.tabs[state.tab] && (state.tabs[state.tab].recent || state.tabs[state.tab].search) && list === state.list;
+    var fromRecent = state.tabs[state.tab] && (state.tabs[state.tab].recent || state.tabs[state.tab].search || state.tabs[state.tab].queue || state.tabs[state.tab].favorites) && list === state.list;
     now = {entry: entry, list: list, index: index, source: source, next: fromRecent ? 'none' : source && source.next};
     audio.src = viaProxy(entry.url);
     var start = player.resumeAt(progress, entry.url);
@@ -489,13 +579,36 @@
   }
   function cycleSleep() {
     sleepMinutes = player.nextSleep(sleepMinutes);
-    clearTimeout(sleepTimer);
+    clearTimeout(sleepTimer); clearTimeout(blackTimer);
+    $('sleep-black').hidden = true;
+    if (sleepMinutes === 'end') blackTimer = setTimeout(function () { if (sleepMinutes === 'end') $('sleep-black').hidden = false; }, 2500);
     var label = $('p-sleep');
     label.textContent = player.sleepLabel(sleepMinutes); label.hidden = !sleepMinutes;
     toast(player.sleepLabel(sleepMinutes));
-    if (sleepMinutes) {
+    if (sleepMinutes && sleepMinutes !== 'end') {
       sleepTimer = setTimeout(function () { audio.pause(); sleepMinutes = 0; label.hidden = true; toast('Đã tự dừng theo hẹn giờ.'); }, sleepMinutes * 60000);
     }
+  }
+  var speedCheck = 0;
+  function verifySpeed() {
+    var desired = audio.playbackRate, token = ++speedCheck, src = audio.currentSrc;
+    if (desired === 1 || audio.paused) return;
+    var start = audio.currentTime, started = Date.now();
+    setTimeout(function () {
+      if (token !== speedCheck || audio.currentSrc !== src || audio.paused) return;
+      var elapsed = (Date.now() - started) / 1000, advance = audio.currentTime - start;
+      if (audio.seeking || audio.readyState < 3 || advance < 1) {
+        audio.playbackRate = 1; toast('Chưa xác minh được tốc độ; đã về 1×.'); return;
+      }
+      if (!player.speedMatches(desired, advance, elapsed)) {
+        audio.playbackRate = 1; toast('TV không hỗ trợ tốc độ này; đã về 1×.');
+      } else toast('Tốc độ: ' + desired + '×');
+    }, 4000);
+  }
+  function cycleSpeed() {
+    var desired = player.nextSpeed(audio.playbackRate || 1);
+    try { audio.playbackRate = desired; toast(desired === 1 ? 'Tốc độ: 1×' : 'Đang kiểm tra tốc độ ' + desired + '×…'); verifySpeed(); }
+    catch (error) { toast('TV không hỗ trợ tốc độ này.'); }
   }
   audio.addEventListener('timeupdate', function () {
     var duration = audio.duration || (now.entry && now.entry.duration) || 0;
@@ -507,10 +620,13 @@
     $('p-fill').style.webkitTransform = 'scaleX(' + ratio + ')';
     if (Date.now() - saveAt > 10000) { saveAt = Date.now(); saveProgressNow(); }
   });
-  audio.addEventListener('play', function () { updateNow(); wake(); });
+  audio.addEventListener('play', function () { updateNow(); wake(); verifySpeed(); });
   audio.addEventListener('pause', function () { updateNow(); saveProgressNow(); $('player').classList.remove('calm'); });
   audio.addEventListener('ended', function () {
     if (now.entry) { progress = player.saveProgress(progress, now.entry.url, audio.duration, audio.duration, Date.now()); writeJson(PROGRESS_KEY, progress); }
+    if (now.entry) { playedMarks = organize.setPlayed(playedMarks, now.entry.url, true, Date.now()); writeJson('nghe-played', playedMarks); }
+    if (sleepMinutes === 'end') { sleepMinutes = 0; $('p-sleep').hidden = true; audio.pause(); return; }
+    if (queue.length) { var nextQueued = library.shiftQueued(queue); queue = nextQueued.queue; writeJson('nghe-queue', queue); play([nextQueued.item], 0, findSource(nextQueued.item.sourceId)); now.next = 'none'; return; }
     step(0);
   });
   audio.addEventListener('error', function () { if (now.entry) toast('Không phát được bài này (nguồn có thể đã đổi hoặc chặn).'); });
@@ -576,6 +692,7 @@
     if (inList) {
       var items = focusables(listEl);
       if (name === 'ArrowUp' && items.indexOf(active) === 0) { (state.tabs[state.tab].search ? $('search-input') : sourcesEl.hidden ? tabsEl.children[state.tab] : sourcesEl.children[state.source]).focus(); return; }
+      if (name === 'ArrowRight' && items.indexOf(active) >= 0) { itemActions(state.list[items.indexOf(active)]); return; }
       if (name === 'ArrowUp' || name === 'ArrowDown') moveWithin(items, name);
       return;
     }
@@ -583,19 +700,25 @@
   }
   function playerKey(name) {
     wake();
-    if (name === 'Back') { showBrowse(); return; }
+    if (name === 'Back') {
+      if (sleepMinutes === 'end') { sleepMinutes = 0; clearTimeout(blackTimer); $('p-sleep').hidden = true; }
+      showBrowse(); return;
+    }
     if (name === 'Enter' || name === 'MediaPlayPause') toggle();
     else if (name === 'MediaPlay') { if (audio.paused) toggle(); }
     else if (name === 'MediaPause') { if (!audio.paused) toggle(); }
     else if (name === 'ArrowLeft' || name === 'MediaRewind') seekBy(-SEEK);
     else if (name === 'ArrowRight' || name === 'MediaFastForward') seekBy(SEEK);
     else if (name === 'ArrowDown') cycleSleep();
+    else if (name === 'ArrowUp') cycleSpeed();
     else if (name === 'MediaTrackNext') step(1);
     else if (name === 'MediaTrackPrevious') step(-1);
     else if (name === 'MediaStop') { audio.pause(); showBrowse(); }
   }
   document.addEventListener('keydown', function (event) {
     var name = keyName(event);
+    if (!$('actions').hidden) { actionKey(name, event); return; }
+    if (!$('sleep-black').hidden && /^(Arrow|Enter$|Back$|Media)/.test(name)) { event.preventDefault(); $('sleep-black').hidden = true; if (name === 'Back') { sleepMinutes = 0; clearTimeout(blackTimer); $('p-sleep').hidden = true; } return; }
     if (document.activeElement === $('search-input') && (event.key === 'Backspace' || name === 'Enter' || name === 'ArrowLeft' || name === 'ArrowRight')) return;
     if (/^(Arrow|Enter$|Back$|Media)/.test(name)) event.preventDefault();
     if (state.view === 'player') { playerKey(name); return; }
