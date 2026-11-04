@@ -114,6 +114,12 @@ def search_itunes(term):
 
 
 def main():
+    # Windows consoles and pipes often use cp1252, which cannot print ✓ or Vietnamese: print UTF-8, never crash.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('sources', nargs='?', help='text file with one feed URL per line')
     parser.add_argument('--search', help='search term for the Apple podcast index (Vietnam store)')
