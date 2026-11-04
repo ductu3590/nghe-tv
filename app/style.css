@@ -1,0 +1,98 @@
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#fff;background:#0a0d18}
+body{background:radial-gradient(ellipse 70% 60% at 20% 0%,#24305a 0,rgba(36,48,90,0) 70%),radial-gradient(ellipse 60% 50% at 100% 100%,#3a2347 0,rgba(58,35,71,0) 70%),#0a0d18}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-align:left}
+[hidden]{display:none!important}
+.browse{position:relative;width:1920px;max-width:100%;height:1080px;margin:auto;padding:52px 96px 40px;display:flex;flex-direction:column}
+
+/* ---- Header ---- */
+.top{display:flex;align-items:center;gap:28px;height:64px}
+.brand{margin:0;font-size:40px;font-weight:700;letter-spacing:-1px}
+.clock{margin-left:auto;font-size:30px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.8)}
+.now{display:flex;align-items:center;gap:14px;max-width:820px;padding:12px 26px 12px 20px;border-radius:30px;font-size:21px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);white-space:nowrap;overflow:hidden}
+.now span:last-child{overflow:hidden;text-overflow:ellipsis}
+.now:focus{outline:none;background:rgba(255,255,255,.94);color:#141a2b}
+.eq{display:flex;align-items:flex-end;gap:3px;height:18px;flex:none}
+.eq i{display:block;width:4px;height:100%;border-radius:2px;background:#5ee39a;-webkit-transform-origin:bottom;transform-origin:bottom;
+  -webkit-animation:eq 1s ease-in-out infinite;animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(2){-webkit-animation-delay:-.4s;animation-delay:-.4s}.eq i:nth-child(3){-webkit-animation-delay:-.7s;animation-delay:-.7s}
+.now.paused .eq i{-webkit-animation:none;animation:none;-webkit-transform:scaleY(.3);transform:scaleY(.3)}
+@-webkit-keyframes eq{0%,100%{-webkit-transform:scaleY(.3)}50%{-webkit-transform:scaleY(1)}}
+@keyframes eq{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+
+/* ---- Tabs ---- */
+.tabs{display:flex;gap:10px;margin:30px 0 26px}
+.tab{padding:14px 30px;border-radius:30px;font-size:24px;color:rgba(255,255,255,.7)}
+.tab.on{color:#fff;background:rgba(255,255,255,.14)}
+.tab:focus{outline:none;background:rgba(255,255,255,.94);color:#141a2b}
+
+/* ---- Sources row ---- */
+.sources{display:flex;gap:26px;height:316px;margin:0 -20px;padding:22px 20px 10px;overflow:hidden}
+.source{position:relative;flex:none;width:230px;display:flex;flex-direction:column;gap:14px;
+  -webkit-transition:-webkit-transform .3s cubic-bezier(.3,1.35,.5,1);transition:transform .3s cubic-bezier(.3,1.35,.5,1)}
+.source .art{position:relative;width:230px;height:230px;border-radius:24px;overflow:hidden;background-size:cover;background-position:center;
+  box-shadow:0 14px 28px rgba(0,0,0,.4)}
+.source .art .mono{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:700;letter-spacing:-2px}
+.source.has-art .mono{display:none}
+.source .name{font-size:19px;line-height:1.25;color:rgba(255,255,255,.75);max-height:48px;overflow:hidden}
+.source.on .name{color:#fff}
+.source:focus{outline:none;-webkit-transform:translateY(-8px) scale(1.06);transform:translateY(-8px) scale(1.06)}
+.source:focus .art{box-shadow:0 30px 46px -14px rgba(0,0,0,.7),inset 0 0 0 1px rgba(255,255,255,.2)}
+.source:focus .name{color:#fff}
+.tone-0{background:linear-gradient(145deg,#3d6be0,#1c2f7a)}.tone-1{background:linear-gradient(145deg,#e0623d,#7a2a1c)}
+.tone-2{background:linear-gradient(145deg,#2fae86,#145a49)}.tone-3{background:linear-gradient(145deg,#9b5de5,#47227a)}
+.tone-4{background:linear-gradient(145deg,#d9a23a,#7a5414)}
+
+/* ---- Episode list ---- */
+.episodes{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:10px}
+.list-title{margin:0 0 14px 6px;font-size:22px;font-weight:600;color:rgba(255,255,255,.6)}
+.list{flex:1;min-height:0;overflow:hidden;padding:4px}
+.list:focus{outline:none}
+.item{display:flex;align-items:center;gap:22px;width:100%;padding:16px 22px;border-radius:20px}
+.item .thumb{flex:none;width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,.08) center/cover no-repeat}
+.item .text{min-width:0;flex:1}
+.item .t{display:block;font-size:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .s{display:block;margin-top:6px;font-size:18px;color:rgba(255,255,255,.55)}
+.item .chev{flex:none;font-size:28px;color:rgba(255,255,255,.4)}
+.item.playing .t{color:#5ee39a}
+.item:focus{outline:none;background:rgba(255,255,255,.94);color:#141a2b}
+.item:focus .s,.item:focus .chev{color:#4a5568}
+.item:focus.playing .t{color:#0f7a43}
+.empty{padding:24px;font-size:22px;color:rgba(255,255,255,.6)}
+.mode{position:absolute;left:96px;bottom:16px;margin:0;font-size:13px;letter-spacing:2px;color:rgba(255,255,255,.45)}
+
+/* ---- Now playing: wallpaper-like cover art, then everything fades until only the picture and sound remain ---- */
+.player{position:fixed;left:0;top:0;right:0;bottom:0;overflow:hidden;background:#06080f}
+.backdrop{position:absolute;left:-6%;top:-6%;right:-6%;bottom:-6%;background:#101524 center/cover no-repeat;
+  -webkit-filter:blur(36px) brightness(.55) saturate(1.2);filter:blur(36px) brightness(.55) saturate(1.2)}
+.player::after{content:'';position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(6,8,15,0) 40%,rgba(6,8,15,.7) 100%)}
+.stage{position:absolute;left:150px;right:150px;bottom:130px;z-index:1;display:flex;align-items:flex-end;gap:56px;
+  -webkit-transition:opacity 1.2s ease,-webkit-transform 1.2s ease;transition:opacity 1.2s ease,transform 1.2s ease}
+.cover{flex:none;width:340px;height:340px;border-radius:30px;background:#1d2338 center/cover no-repeat;box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.meta{min-width:0;flex:1;padding-bottom:6px}
+.eyebrow{margin:0 0 14px;font-size:20px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.65)}
+.p-title{margin:0 0 34px;font-size:46px;line-height:1.2;font-weight:700;max-height:112px;overflow:hidden}
+.bar{height:8px;border-radius:4px;background:rgba(255,255,255,.22);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;border-radius:4px;background:#fff;-webkit-transform-origin:left;transform-origin:left;
+  -webkit-transform:scaleX(0);transform:scaleX(0)}
+.times{display:flex;justify-content:space-between;margin:14px 0 0;font-size:20px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.75)}
+.hint{margin:26px 0 0;font-size:18px;color:rgba(255,255,255,.5);-webkit-transition:opacity .6s;transition:opacity .6s}
+/* Without cover art the picture is a slow dusk gradient, never a black screen. */
+.player.no-art .backdrop{background:radial-gradient(ellipse 40% 26% at 50% 44%,#ffd9a0 0,rgba(255,181,90,.35) 40%,rgba(0,0,0,0) 100%),
+  linear-gradient(180deg,#1a2342 0%,#3c4a78 30%,#c9855a 50%,#f1b36b 57%,#38466e 60%,#18213d 80%,#0a0f1e 100%);
+  -webkit-filter:blur(8px) brightness(.75);filter:blur(8px) brightness(.75)}
+.player.no-art .cover{background:linear-gradient(145deg,#3d6be0,#1c2f7a)}
+.whisper{position:absolute;left:150px;right:150px;bottom:64px;z-index:1;display:flex;justify-content:space-between;gap:30px;margin:0;
+  font-size:19px;color:rgba(255,255,255,.55);opacity:0;-webkit-transition:opacity 1.2s ease;transition:opacity 1.2s ease}
+.whisper span:first-child{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.player.calm .whisper{opacity:1}
+.player.calm .stage{opacity:.0;-webkit-transform:translateY(20px);transform:translateY(20px)}
+.player.calm .cover{opacity:0}
+.sleep{position:absolute;top:56px;right:96px;z-index:1;margin:0;padding:12px 24px;border-radius:24px;font-size:20px;background:rgba(0,0,0,.35)}
+.toast{position:fixed;left:50%;bottom:64px;z-index:9;-webkit-transform:translateX(-50%);transform:translateX(-50%);max-width:80%;
+  padding:20px 32px;border-radius:20px;font-size:21px;background:rgba(28,34,52,.94);border:1px solid rgba(255,255,255,.18)}
+@media(max-width:1500px){.browse{width:100%;height:100vh;padding:32px 48px 28px}.sources{height:220px}.source,.source .art{width:160px}
+  .source .art{height:160px}.item .t{font-size:20px}.stage{left:70px;right:70px;bottom:70px}.cover{width:220px;height:220px}.p-title{font-size:32px}}
+@media(prefers-reduced-motion:reduce){*{-webkit-transition:none!important;transition:none!important;-webkit-animation:none!important;animation:none!important}}

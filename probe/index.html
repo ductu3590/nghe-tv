@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=1920, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; media-src 'self' https: blob:; connect-src 'self' https:; object-src 'none'; base-uri 'none'">
+<title>Nghe Probe</title><link rel="stylesheet" href="probe.css"></head>
+<body>
+<main>
+  <h1>Nghe Probe</h1>
+  <p class="lead">Kiểm tra trên TV những gì app Nghe cần. Ảnh chụp màn hình này là kết quả cần gửi lại.</p>
+  <div class="actions"><button id="again">Chạy lại</button><button id="bgtest">Thử phát khi bị che</button></div>
+  <div id="rows" class="rows"></div>
+  <p id="bg" class="bg">Phát khi bị che: chưa thử. Chọn "Thử phát khi bị che", bấm Home, đợi 20 giây rồi mở lại NgheProbe.</p>
+  <p id="summary" class="summary"></p>
+  <p id="ua" class="ua"></p>
+</main>
+<audio id="audio" preload="none"></audio>
+<script src="feeds.js"></script><script src="probe.js"></script>
+</body></html>

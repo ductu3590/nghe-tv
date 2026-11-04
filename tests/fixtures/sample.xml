@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+<title>Mẫu podcast</title><itunes:image href="https://example.org/cover.jpg"/>
+<item><title>Bản tin sáng</title><pubDate>Tue, 03 Nov 2026 06:00:00 +0700</pubDate><itunes:duration>12:30</itunes:duration>
+<enclosure url="https://example.org/a.mp3" type="audio/mpeg" length="1"/></item>
+<item><title>Bài chỉ có chữ</title><pubDate>Mon, 02 Nov 2026 06:00:00 +0700</pubDate></item>
+</channel></rss>

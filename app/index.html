@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=1920, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; media-src 'self' https: blob:; connect-src 'self' https:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Nghe</title><link rel="icon" href="icon.png"><link rel="stylesheet" href="style.css"></head>
+<body>
+<main id="browse" class="browse">
+  <header class="top">
+    <h1 class="brand">Nghe</h1>
+    <button id="now" class="now" hidden aria-label="Đang phát"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span id="now-title"></span></button>
+    <time id="clock" class="clock"></time>
+  </header>
+  <nav id="tabs" class="tabs" aria-label="Chuyên mục"></nav>
+  <section id="sources" class="sources" aria-label="Nguồn"></section>
+  <section class="episodes">
+    <h2 id="list-title" class="list-title"></h2>
+    <div id="list" class="list" role="list" tabindex="-1"></div>
+  </section>
+  <p id="mode" class="mode"></p>
+</main>
+<section id="player" class="player" hidden aria-label="Đang nghe">
+  <div id="backdrop" class="backdrop"></div>
+  <div class="stage">
+    <div id="cover" class="cover"></div>
+    <div class="meta">
+      <p id="p-source" class="eyebrow"></p>
+      <h2 id="p-title" class="p-title"></h2>
+      <div class="bar"><i id="p-fill"></i></div>
+      <p class="times"><span id="p-time">0:00</span><span id="p-state"></span><span id="p-dur">0:00</span></p>
+      <p class="hint">OK tạm dừng · ‹ › tua 15 giây · ▾ hẹn giờ · Back về danh sách</p>
+    </div>
+  </div>
+  <p id="p-sleep" class="sleep" hidden></p>
+  <p class="whisper"><span id="w-title"></span><span id="w-time"></span></p>
+</section>
+<audio id="audio" preload="none"></audio>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script src="feeds.js"></script><script src="player.js"></script><script src="app.js"></script>
+</body></html>

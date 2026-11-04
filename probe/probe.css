@@ -1,0 +1,17 @@
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#fff;background:#0d1020}
+main{width:1920px;max-width:100%;padding:44px 90px}
+h1{margin:0;font-size:40px}
+.lead{margin:8px 0 20px;font-size:20px;color:rgba(255,255,255,.7)}
+.actions{display:flex;gap:16px;margin-bottom:18px}
+button{font:inherit;font-size:22px;color:#fff;padding:14px 28px;border-radius:26px;border:0;background:rgba(255,255,255,.14)}
+button:focus{outline:none;background:#fff;color:#151a2c}
+.rows{display:grid;grid-template-columns:1fr 1fr;gap:8px 26px}
+.row{display:flex;justify-content:space-between;gap:20px;padding:11px 18px;border-radius:14px;font-size:19px;background:rgba(255,255,255,.06)}
+.row .label{flex:none;max-width:48%}
+.row .value{text-align:right;color:rgba(255,255,255,.8)}
+.row.ok{box-shadow:inset 5px 0 0 #5ee39a}.row.bad{box-shadow:inset 5px 0 0 #ff6b6b}.row.info{box-shadow:inset 5px 0 0 #9fb6c9}
+.row.wait .value{color:rgba(255,255,255,.45)}
+.bg{margin:18px 0 0;padding:14px 18px;border-radius:14px;font-size:20px;background:rgba(242,182,76,.14)}
+.summary{margin:12px 0 0;font-size:17px;color:rgba(255,255,255,.6)}
+.ua{margin:8px 0 0;font-size:13px;color:rgba(255,255,255,.4)}
