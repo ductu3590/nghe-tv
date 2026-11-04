@@ -86,3 +86,11 @@ test('the app reads every source directly on the TV; the proxy exists only in th
   assert.match(app, /var PREVIEW = !tv && \/\^http\/\.test\(location\.protocol\)/);
   assert.match(app, /function viaProxy\(url\) \{ return PREVIEW && \/\^https:\\\/\\\/\/\.test\(url\) \? '\/proxy\?url=' \+ encodeURIComponent\(url\) : url; \}/);
 });
+
+test('search action is a labelled header icon immediately after the playing control, not a visible category tab', () => {
+  const html = read('app/index.html');
+  const header = html.match(/<header class="top">([\s\S]*?)<\/header>/)[1];
+  assert.match(header, /id="now"[\s\S]*id="search-action"[^>]*aria-label="Tìm"[\s\S]*<svg[\s\S]*id="clock"/);
+  assert.match(read('app/app.js'), /if \(tab\.search\) return;/);
+  assert.match(read('app/app.js'), /\$\('search-action'\)\.addEventListener\('click'/);
+});

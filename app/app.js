@@ -14,7 +14,7 @@
   var audio = $('audio'), tabsEl = $('tabs'), sourcesEl = $('sources'), listEl = $('list');
   var state = {tabs: [], tab: 0, source: 0, list: [], stack: [], listTitle: '', view: 'browse', zone: 'sources'};
   var now = {entry: null, list: [], index: -1, source: null};
-  var searchData = {}, searchLoading = false, searchTimer = null;
+  var searchData = {}, searchLoading = false, searchTimer = null, lastBrowseId = null;
   var keyNames = {}, memory = {}, toastTimer = null, calmTimer = null, sleepTimer = null, sleepMinutes = 0, saveAt = 0, loadToken = 0;
 
   // ---- Small storage helpers: every access may throw (private mode, quota) and must never break playback ----
@@ -147,6 +147,7 @@
   function renderTabs() {
     tabsEl.textContent = '';
     state.tabs.forEach(function (tab, index) {
+      if (tab.search) return;
       var button = el('button', 'tab' + (index === state.tab ? ' on' : ''), tab.title);
       button.addEventListener('focus', function () { if (state.tab !== index) openTab(index, true); });
       tabsEl.appendChild(button);
@@ -259,7 +260,9 @@
     sourcesEl.textContent = '';
     var tab = state.tabs[index];
     if (!tab) return;
+    $('search-action').classList.toggle('on', !!tab.search);
     $('search-bar').hidden = !tab.search;
+    if (!tab.search) lastBrowseId = tab.id;
     if (tab.search) { loadToken += 1; sourcesEl.hidden = true; startSearch(); renderSearch(); return; }
     if (tab.recent) { showList('Đang nghe', recent.slice(), null); sourcesEl.hidden = true; return; }
     sourcesEl.hidden = false;
@@ -537,10 +540,10 @@
   function browseKey(name) {
     var active = document.activeElement, inTabs = active && active.parentNode === tabsEl;
     var inSearch = active === $('search-input');
-    var inTop = active === $('now') || inTabs, inSources = active && active.parentNode === sourcesEl;
+    var inTop = active === $('now') || active === $('search-action') || inTabs, inSources = active && active.parentNode === sourcesEl;
     var inList = active && (active.parentNode === listEl || active === listEl);
     if (inSearch) {
-      if (name === 'ArrowUp') tabsEl.children[state.tab].focus();
+      if (name === 'ArrowUp') $('search-action').focus();
       else if (name === 'ArrowDown') { var result = listEl.querySelector('button'); if (result) result.focus(); }
       else if (name === 'Back') active.blur();
       return;
@@ -548,14 +551,19 @@
     if (name === 'Back') {
       // Inside a book, Back always climbs out first, even while its chapter list is still loading.
       if ((inList || !active || active === document.body) && leaveFolder()) return;
-      if (inList || !active || active === document.body) { (sourcesEl.hidden ? tabsEl.children[state.tab] : sourcesEl.children[state.source] || tabsEl.children[state.tab]).focus(); return; }
+      if (inList || !active || active === document.body) { (state.tabs[state.tab].search ? $('search-action') : sourcesEl.hidden ? tabsEl.children[state.tab] : sourcesEl.children[state.source] || tabsEl.children[state.tab]).focus(); return; }
       if (inSources) { tabsEl.children[state.tab].focus(); return; }
+      if (active === $('search-action') && state.tabs[state.tab].search) {
+        var previous = 0; state.tabs.forEach(function (tab, index) { if (tab.id === lastBrowseId) previous = index; });
+        openTab(previous, true); if (tabsEl.children[previous]) tabsEl.children[previous].focus(); return;
+      }
       exitApp(); return;
     }
     if (name === 'Enter') { if (active && active.click) active.click(); return; }
     if (inTop) {
-      var top = focusables(tabsEl); if (!$('now').hidden) top.push($('now'));
+      var top = focusables(tabsEl); if (!$('now').hidden) top.push($('now')); top.push($('search-action'));
       if (name === 'ArrowLeft' || name === 'ArrowRight') moveWithin(top, name);
+      else if (name === 'ArrowUp' && inTabs) $('search-action').focus();
       else if (name === 'ArrowDown') { var first = state.tabs[state.tab].search ? $('search-input') : sourcesEl.hidden ? listEl.querySelector('button') : sourcesEl.children[state.source]; if (first) first.focus(); }
       return;
     }
@@ -595,6 +603,12 @@
     browseKey(name);
   });
   $('now').addEventListener('click', function () { if (now.entry) showPlayer(); });
+  $('search-action').addEventListener('click', function () {
+    var index = state.tabs.length - 1;
+    if (index < 0 || !state.tabs[index].search) return;
+    if (state.tab !== index) openTab(index, true);
+    $('search-input').focus();
+  });
   function exitApp() {
     saveProgressNow();
     try { tv.application.getCurrentApplication().exit(); } catch (error) { toast('Bản xem trước · Thoát app'); }
