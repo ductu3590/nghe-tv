@@ -625,7 +625,7 @@
   audio.addEventListener('ended', function () {
     if (now.entry) { progress = player.saveProgress(progress, now.entry.url, audio.duration, audio.duration, Date.now()); writeJson(PROGRESS_KEY, progress); }
     if (now.entry) { playedMarks = organize.setPlayed(playedMarks, now.entry.url, true, Date.now()); writeJson('nghe-played', playedMarks); }
-    if (sleepMinutes === 'end') { sleepMinutes = 0; $('p-sleep').hidden = true; audio.pause(); return; }
+    if (sleepMinutes === 'end') { clearTimeout(blackTimer); $('sleep-black').hidden = false; sleepMinutes = 0; $('p-sleep').hidden = true; audio.pause(); return; }
     if (queue.length) { var nextQueued = library.shiftQueued(queue); queue = nextQueued.queue; writeJson('nghe-queue', queue); play([nextQueued.item], 0, findSource(nextQueued.item.sourceId)); now.next = 'none'; return; }
     step(0);
   });
