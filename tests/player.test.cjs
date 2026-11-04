@@ -20,8 +20,9 @@ test('auto-next follows the source order, stops at the ends, and is off by defau
   assert.equal(player.nextIndex(0, 0, 'list'), -1);
   assert.equal(player.nextIndex(5, 9, 'list'), -1);
 });
-test('sleep timer cycles off → 15 → 30 → 60 → off', () => {
-  assert.deepEqual([0, 15, 30, 60, 7].map(player.nextSleep), [15, 30, 60, 0, 0]);
+test('sleep timer cycles through minutes and the end-of-track option', () => {
+  assert.deepEqual([0, 15, 30, 60, 'end', 7].map(player.nextSleep), [15, 30, 60, 'end', 0, 0]);
+  assert.match(player.sleepLabel('end'), /Hết bài/);
   assert.equal(player.sleepLabel(0), 'Hẹn giờ: tắt');
   assert.equal(player.sleepLabel(30), 'Tự dừng sau 30 phút');
 });
@@ -55,4 +56,15 @@ test('cache freshness and list subtitles', () => {
   assert.equal(player.subtitle({date: new Date(2026, 10, 4, 6).getTime(), duration: 888}, 40, now), 'Hôm nay · 14:48 · đã nghe 40%');
   assert.equal(player.subtitle({date: new Date(2026, 10, 3, 21).getTime()}, 99, now), '3/11 · đã nghe xong');
   assert.equal(player.subtitle({folder: true, tracks: [1, 2]}, 0, now), '2 phần');
+});
+
+test('playback speed cycles through the supported options', () => {
+  assert.deepEqual([1, 1.25, 1.5, 0.75, 99].map(player.nextSpeed), [1.25, 1.5, 0.75, 1, 1]);
+});
+
+test('speed verification detects a TV that accepts a value but plays at normal speed', () => {
+  assert.equal(player.speedMatches(1.25, 4, 4), false);
+  assert.equal(player.speedMatches(1.5, 6, 4), true);
+  assert.equal(player.speedMatches(0.75, 3, 4), true);
+  assert.equal(player.speedMatches(1.5, 0, 4), false);
 });
