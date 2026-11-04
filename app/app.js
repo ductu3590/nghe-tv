@@ -3,7 +3,7 @@
 // Never registers Home, Power or brand keys; only media keys the TV reports as supported.
 (function () {
   'use strict';
-  var feeds = window.NgheFeeds, player = window.NghePlayer, tv = window.tizen;
+  var feeds = window.NgheFeeds, player = window.NghePlayer, search = window.NgheSearch, tv = window.tizen;
   var $ = function (id) { return document.getElementById(id); };
   var REMOTE_SOURCES = 'https://raw.githubusercontent.com/ductu3590/nghe-tv/main/app/sources.json';
   var PREVIEW = !tv && /^http/.test(location.protocol); // desktop preview: go through the loopback dev proxy
@@ -14,6 +14,7 @@
   var audio = $('audio'), tabsEl = $('tabs'), sourcesEl = $('sources'), listEl = $('list');
   var state = {tabs: [], tab: 0, source: 0, list: [], stack: [], listTitle: '', view: 'browse', zone: 'sources'};
   var now = {entry: null, list: [], index: -1, source: null};
+  var searchData = {}, searchLoading = false, searchTimer = null;
   var keyNames = {}, memory = {}, toastTimer = null, calmTimer = null, sleepTimer = null, sleepMinutes = 0, saveAt = 0, loadToken = 0;
 
   // ---- Small storage helpers: every access may throw (private mode, quota) and must never break playback ----
@@ -41,7 +42,7 @@
     if (options.until) {
       xhr.onprogress = function () {
         var text = xhr.responseText || '', cut = options.until(text);
-        if (cut > 0) { finish(null, text.slice(0, cut)); try { xhr.abort(); } catch (error) { /* done */ } }
+        if (cut > 0) { try { xhr.abort(); } catch (error) { /* done */ } finish(null, text.slice(0, cut)); }
       };
     }
     xhr.onload = function () {
@@ -54,7 +55,7 @@
   function cached(key) {
     if (memory[key]) return memory[key];
     var all = readJson(CACHE_KEY, {}), entry = all && all[key];
-    return player.isFresh(entry, Date.now(), CACHE_TTL) ? (memory[key] = entry) : null;
+    return entry && entry.items ? (memory[key] = entry) : null;
   }
   function remember(key, value) {
     value.at = Date.now(); memory[key] = value;
@@ -68,28 +69,28 @@
   // Loads a source (or one book of it) into {title, image, items}. Book sites are personal-use adapters.
   function loadSource(source, folder, done) {
     var key = folder ? 'f:' + (folder.url || folder.id) : 's:' + source.id, hit = cached(key);
-    if (hit) { done(null, hit); return; }
-    function keep(error, value) { if (!error) remember(key, value); done(error, value); }
+    if (hit) { var stale = !player.isFresh(hit, Date.now(), CACHE_TTL); done(null, hit, stale); if (!stale) return; }
+    function keep(error, value) { if (!error) remember(key, value); done(hit && error ? null : error, hit && error ? hit : value, false); }
     if (folder && folder.tracks) { keep(null, {title: folder.title, image: folder.image, items: folder.tracks}); return; }
     if (source.type === 'rss') {
       load(source.url, {until: function (text) { return feeds.enoughItems(text, FEED_ITEMS); }}, function (error, text) {
-        if (error) { done(error); return; }
+        if (error) { keep(error); return; }
         var feed = feeds.parseRss(text, FEED_ITEMS);
         keep(feed.items.length ? null : new Error('empty'), feed);
       });
     } else if (source.type === 'audioaz') {
       load(folder ? folder.url : source.url, {}, function (error, html) {
-        if (error) { done(error); return; }
+        if (error) { keep(error); return; }
         var items = folder ? feeds.audioazTracks(html) : feeds.audioazBooks(html);
         keep(items.length ? null : new Error('empty'), {title: folder ? folder.title : source.title, image: folder ? folder.image : '', items: items});
       });
     } else if (source.type === 'wordpress') {
       load(source.url, {}, function (error, text) {
-        if (error) { done(error); return; }
+        if (error) { keep(error); return; }
         var items = feeds.wordpressBooks(text, 50);
         keep(items.length ? null : new Error('empty'), {title: source.title, image: '', items: items});
       });
-    } else done(new Error('unknown source type'));
+    } else keep(new Error('unknown source type'));
   }
 
   // ---- Sources list: bundled copy first (instant, works offline), then the GitHub copy if it is valid ----
@@ -103,8 +104,9 @@
     return tabs.length ? tabs : null;
   }
   function withRecent(tabs) {
-    if (!recent.length) return tabs;
-    return [{id: 'recent', title: 'Đang nghe', recent: true, sources: []}].concat(tabs);
+    var all = tabs.concat([{id: 'search', title: 'Tìm', search: true, sources: []}]);
+    if (!recent.length) return all;
+    return [{id: 'recent', title: 'Đang nghe', recent: true, sources: []}].concat(all);
   }
   // The first play adds "Đang nghe" in front without rebuilding the list the user is in.
   function ensureRecentTab() {
@@ -160,29 +162,112 @@
     button.appendChild(art); button.appendChild(name);
     var hit = cached('s:' + source.id);
     if (hit && hit.image) setArt(button, hit.image);
-    button.addEventListener('focus', function () { state.zone = 'sources'; if (state.source !== index || !state.list.length) selectSource(index); });
+    button.addEventListener('focus', function () { state.zone = 'sources'; if (state.source !== index || !state.list.length) selectSource(index); scheduleImages(); });
     button.addEventListener('click', function () { var first = listEl.querySelector('button'); if (first) first.focus(); });
     return button;
   }
   function setArt(button, image) {
     var art = button.querySelector('.art');
     if (!image || !art) return;
-    art.style.backgroundImage = cssUrl(image);
-    button.classList.add('has-art');
+    art.setAttribute('data-image', image);
+    scheduleImages();
   }
+  // Cache only small JPEG thumbnails; the original stays on the source's server.
+  var imageCache = readJson('nghe-thumbs-v1', {}), imageReady = {}, imagePending = {}, imageQueue = [], imageActive = 0, imageTimer, imagePersistTimer, firstImageMarked = false;
+  if (!imageCache || typeof imageCache !== 'object') imageCache = {};
+  function visibleImage(node) {
+    var box = node.getBoundingClientRect(), parent = node.parentNode;
+    while (parent && parent !== document.body) {
+      if (parent === listEl || parent === sourcesEl) {
+        var clip = parent.getBoundingClientRect();
+        if (box.bottom <= clip.top || box.top >= clip.bottom || box.right <= clip.left || box.left >= clip.right) return false;
+      }
+      parent = parent.parentNode;
+    }
+    return box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < window.innerHeight && box.right > 0 && box.left < window.innerWidth;
+  }
+  function applyImage(node, url) {
+    node.style.backgroundImage = cssUrl(url);
+    if (!firstImageMarked && url.indexOf('data:image/') === 0) {
+      firstImageMarked = true;
+      if (window.performance && window.performance.mark) window.performance.mark('nghe-first-cached-image');
+    }
+    if (node.parentNode && node.parentNode.classList && node.classList.contains('art')) node.parentNode.classList.add('has-art');
+  }
+  function paintImages(url, value) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-image]'), function (node) {
+      if (node.getAttribute('data-image') === url && visibleImage(node)) applyImage(node, value);
+    });
+  }
+  function imageStillVisible(url) {
+    return Array.prototype.some.call(document.querySelectorAll('[data-image]'), function (node) { return node.getAttribute('data-image') === url && visibleImage(node); });
+  }
+  function runImages() {
+    while (imageActive < 3 && imageQueue.length) {
+      (function (url) {
+        if (!imageStillVisible(url)) { delete imagePending[url]; return; }
+        imageActive += 1;
+        var img = new Image(), finished = false, timer;
+        function end(ok) {
+          if (finished) return; finished = true; clearTimeout(timer); imageActive -= 1; delete imagePending[url];
+          if (ok) {
+            var value = url;
+            try {
+              var canvas = document.createElement('canvas'), scale = Math.min(1, 240 / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+              canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+              canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              var encoded = canvas.toDataURL('image/jpeg', 0.72);
+              if (encoded.indexOf('data:image/jpeg') === 0) {
+                value = encoded; imageCache[url] = {at: Date.now(), data: encoded};
+                imageCache = window.NgheImages.trim(imageCache, 750000);
+                writeJson('nghe-thumbs-v1', imageCache);
+              }
+            } catch (error) { /* CORS/tainted canvas or unavailable storage: use the original */ }
+            imageReady[url] = value; paintImages(url, value);
+          }
+          runImages();
+        }
+        img.onload = function () { end(true); }; img.onerror = function () { end(false); };
+        timer = setTimeout(function () { img.onload = null; img.onerror = null; img.src = ''; end(false); }, 20000);
+        img.src = viaProxy(url);
+      }(imageQueue.shift()));
+    }
+  }
+  function scheduleImages() {
+    clearTimeout(imageTimer);
+    imageTimer = setTimeout(function () {
+      Array.prototype.forEach.call(document.querySelectorAll('[data-image]'), function (node) {
+        if (!visibleImage(node)) return;
+        var url = node.getAttribute('data-image'), hit = imageCache[url];
+        if (hit && hit.data) {
+          hit.at = Date.now(); applyImage(node, hit.data);
+          clearTimeout(imagePersistTimer); imagePersistTimer = setTimeout(function () { writeJson('nghe-thumbs-v1', imageCache); }, 2000);
+          return;
+        }
+        if (imageReady[url]) { applyImage(node, imageReady[url]); return; }
+        if (!imagePending[url]) { imagePending[url] = true; imageQueue.push(url); }
+      });
+      runImages();
+    }, 0);
+  }
+  listEl.addEventListener('scroll', scheduleImages);
+  sourcesEl.addEventListener('scroll', scheduleImages);
   function openTab(index, keepFocus) {
     state.tab = index; state.source = 0; state.stack = [];
     Array.prototype.forEach.call(tabsEl.children, function (node, at) { node.classList.toggle('on', at === index); });
     sourcesEl.textContent = '';
     var tab = state.tabs[index];
     if (!tab) return;
+    $('search-bar').hidden = !tab.search;
+    if (tab.search) { loadToken += 1; sourcesEl.hidden = true; startSearch(); renderSearch(); return; }
     if (tab.recent) { showList('Đang nghe', recent.slice(), null); sourcesEl.hidden = true; return; }
     sourcesEl.hidden = false;
     tab.sources.forEach(function (source, at) { sourcesEl.appendChild(sourceCard(source, at)); });
     selectSource(0);
     if (!keepFocus && state.view === 'browse' && sourcesEl.firstChild) sourcesEl.firstChild.focus();
   }
-  function currentSource() { var tab = state.tabs[state.tab]; return tab && !tab.recent ? tab.sources[state.source] : null; }
+  function currentSource() { var tab = state.tabs[state.tab]; return tab && !tab.recent && !tab.search ? tab.sources[state.source] : null; }
   function selectSource(index, folder) {
     var source = state.tabs[state.tab] && state.tabs[state.tab].sources[index], token = ++loadToken;
     if (!source) return;
@@ -191,6 +276,7 @@
     if (!folder) state.stack = [];
     showList(folder ? folder.title : source.title, null, source, 'Đang tải…');
     loadSource(source, folder, function (error, value) {
+      var focusedIndex = Array.prototype.indexOf.call(listEl.children, document.activeElement);
       if (token !== loadToken) return; // the user moved on
       if (error) { showList(folder ? folder.title : source.title, [], source, 'Không tải được nguồn này. Thử lại sau.'); return; }
       // Some feeds (VnExpress) have no show art: the newest episode's picture stands in for it.
@@ -200,6 +286,7 @@
         return {title: item.title, url: item.url, date: item.date, duration: item.duration, image: item.image || value.image,
           folder: !!item.folder, tracks: item.tracks, id: item.id, sourceId: source.id, sourceTitle: source.title};
       }), source);
+      if (focusedIndex >= 0 && listEl.children[focusedIndex] && listEl.children[focusedIndex].focus) listEl.children[focusedIndex].focus();
     });
   }
   function showList(title, items, source, message) {
@@ -210,20 +297,76 @@
     if (!items.length) { listEl.appendChild(el('p', 'empty', message || 'Chưa có bài nào.')); return; }
     items.forEach(function (item, index) {
       var button = el('button', 'item'), text = el('span', 'text'), thumb = el('span', 'thumb');
-      if (item.image) thumb.style.backgroundImage = cssUrl(item.image);
+      if (item.image) thumb.setAttribute('data-image', item.image);
       text.appendChild(el('span', 't', item.title));
       text.appendChild(el('span', 's', player.subtitle(item, player.percent(progress, item.url), Date.now())));
       button.appendChild(thumb); button.appendChild(text);
       if (item.folder) button.appendChild(el('span', 'chev', '›'));
       if (now.entry && now.entry.url && now.entry.url === item.url) button.classList.add('playing');
-      button.addEventListener('focus', function () { state.zone = 'list'; try { button.scrollIntoView({block: 'nearest'}); } catch (error) { /* old engine */ } });
+      button.addEventListener('focus', function () { state.zone = 'list'; try { button.scrollIntoView({block: 'nearest'}); } catch (error) { /* old engine */ } scheduleImages(); });
       button.addEventListener('click', function () { activate(index, source); });
       listEl.appendChild(button);
     });
+    scheduleImages();
   }
+  function startSearch() {
+    if (searchLoading) return;
+    var sources = [], at = 0, active = 0;
+    (state.baseTabs || []).forEach(function (tab) { tab.sources.forEach(function (source) {
+      if (source.type === 'rss' || source.type === 'audioaz') sources.push(source);
+    }); });
+    searchLoading = true;
+    function pump() {
+      while (active < 4 && at < sources.length) {
+        (function (source) {
+          if (source.type === 'audioaz') {
+            var saved = memory['s:' + source.id] || (readJson(CACHE_KEY, {}) || {})['s:' + source.id];
+            if (saved) searchData[source.id] = saved;
+            return;
+          }
+          active += 1;
+          var completed = false;
+          loadSource(source, null, function (error, value, pendingRefresh) {
+            if (!pendingRefresh && !completed) { active -= 1; completed = true; }
+            if (!error) searchData[source.id] = value;
+            if (state.tabs[state.tab] && state.tabs[state.tab].search && document.activeElement.parentNode !== listEl) renderSearch();
+            if (!pendingRefresh) pump();
+          });
+        }(sources[at++]));
+      }
+      if (at >= sources.length && !active) { searchLoading = false; if (state.tabs[state.tab] && state.tabs[state.tab].search && document.activeElement.parentNode !== listEl) renderSearch(); }
+    }
+    pump();
+  }
+  function renderSearch() {
+    var query = $('search-input').value, results = [];
+    (state.baseTabs || []).forEach(function (tab, tabIndex) {
+      tab.sources.forEach(function (source, sourceIndex) {
+        if (search.matches(source.title, query)) results.push({title: source.title, sourceTitle: 'Nguồn', searchSource: source.id, sourceTab: tabIndex, sourceIndex: sourceIndex});
+        var value = searchData[source.id];
+        if (!value || !value.items || (source.type !== 'rss' && source.type !== 'audioaz')) return;
+        value.items.forEach(function (item) {
+          if (search.matches(item.title, query)) results.push({title: item.title, url: item.url, date: item.date,
+            duration: item.duration, image: item.image || value.image, folder: !!item.folder,
+            tracks: item.tracks, id: item.id, sourceId: source.id, sourceTitle: source.title});
+        });
+      });
+    });
+    showList('Kết quả tìm kiếm', results, null, query ? (searchLoading ? 'Đang tìm…' : 'Không tìm thấy kết quả.') : 'Nhập tên nguồn hoặc bài nghe.');
+  }
+  $('search-input').addEventListener('focus', function () { if (state.tabs[state.tab] && state.tabs[state.tab].search) renderSearch(); });
+  $('search-input').addEventListener('input', function () {
+    clearTimeout(searchTimer); searchTimer = setTimeout(function () { if (state.tabs[state.tab] && state.tabs[state.tab].search) renderSearch(); }, 150);
+  });
   function activate(index, source) {
     var item = state.list[index];
     if (!item) return;
+    if (item.searchSource) {
+      var targetTab = -1;
+      state.tabs.forEach(function (tab, at) { if (tab.id === state.baseTabs[item.sourceTab].id) targetTab = at; });
+      if (targetTab >= 0) { openTab(targetTab, false); selectSource(item.sourceIndex); if (sourcesEl.children[item.sourceIndex]) sourcesEl.children[item.sourceIndex].focus(); }
+      return;
+    }
     if (item.folder) {
       state.stack.push({title: state.listTitle, list: state.list, focus: index});
       var src = source || findSource(item.sourceId);
@@ -264,7 +407,7 @@
     if (!entry || !entry.url) return;
     saveProgressNow();
     // From "Đang nghe" the list is a history, not a series: never auto-advance through it.
-    var fromRecent = state.tabs[state.tab] && state.tabs[state.tab].recent && list === state.list;
+    var fromRecent = state.tabs[state.tab] && (state.tabs[state.tab].recent || state.tabs[state.tab].search) && list === state.list;
     now = {entry: entry, list: list, index: index, source: source, next: fromRecent ? 'none' : source && source.next};
     audio.src = viaProxy(entry.url);
     var start = player.resumeAt(progress, entry.url);
@@ -393,8 +536,15 @@
   }
   function browseKey(name) {
     var active = document.activeElement, inTabs = active && active.parentNode === tabsEl;
+    var inSearch = active === $('search-input');
     var inTop = active === $('now') || inTabs, inSources = active && active.parentNode === sourcesEl;
     var inList = active && (active.parentNode === listEl || active === listEl);
+    if (inSearch) {
+      if (name === 'ArrowUp') tabsEl.children[state.tab].focus();
+      else if (name === 'ArrowDown') { var result = listEl.querySelector('button'); if (result) result.focus(); }
+      else if (name === 'Back') active.blur();
+      return;
+    }
     if (name === 'Back') {
       // Inside a book, Back always climbs out first, even while its chapter list is still loading.
       if ((inList || !active || active === document.body) && leaveFolder()) return;
@@ -406,7 +556,7 @@
     if (inTop) {
       var top = focusables(tabsEl); if (!$('now').hidden) top.push($('now'));
       if (name === 'ArrowLeft' || name === 'ArrowRight') moveWithin(top, name);
-      else if (name === 'ArrowDown') { var first = sourcesEl.hidden ? listEl.querySelector('button') : sourcesEl.children[state.source]; if (first) first.focus(); }
+      else if (name === 'ArrowDown') { var first = state.tabs[state.tab].search ? $('search-input') : sourcesEl.hidden ? listEl.querySelector('button') : sourcesEl.children[state.source]; if (first) first.focus(); }
       return;
     }
     if (inSources) {
@@ -417,7 +567,7 @@
     }
     if (inList) {
       var items = focusables(listEl);
-      if (name === 'ArrowUp' && items.indexOf(active) === 0) { (sourcesEl.hidden ? tabsEl.children[state.tab] : sourcesEl.children[state.source]).focus(); return; }
+      if (name === 'ArrowUp' && items.indexOf(active) === 0) { (state.tabs[state.tab].search ? $('search-input') : sourcesEl.hidden ? tabsEl.children[state.tab] : sourcesEl.children[state.source]).focus(); return; }
       if (name === 'ArrowUp' || name === 'ArrowDown') moveWithin(items, name);
       return;
     }
@@ -438,6 +588,7 @@
   }
   document.addEventListener('keydown', function (event) {
     var name = keyName(event);
+    if (document.activeElement === $('search-input') && (event.key === 'Backspace' || name === 'Enter' || name === 'ArrowLeft' || name === 'ArrowRight')) return;
     if (/^(Arrow|Enter$|Back$|Media)/.test(name)) event.preventDefault();
     if (state.view === 'player') { playerKey(name); return; }
     if (/^Media/.test(name)) { if (name === 'MediaPlayPause' || name === 'MediaPlay' || name === 'MediaPause') toggle(); return; }

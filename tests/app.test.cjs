@@ -5,7 +5,7 @@ const path = require('node:path');
 const read = (name) => fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
 const preview = require('../tools/preview.cjs');
 
-const SCRIPTS = ['app/app.js', 'app/feeds.js', 'app/player.js', 'probe/probe.js'];
+const SCRIPTS = ['app/app.js', 'app/feeds.js', 'app/player.js', 'app/search.js', 'app/images.js', 'probe/probe.js'];
 
 test('never takes Home, Power or brand keys; only registers media keys the TV reports as supported', () => {
   for (const file of SCRIPTS) {

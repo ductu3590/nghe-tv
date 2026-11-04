@@ -67,3 +67,26 @@ Ghim lên màn hình chính của launcher: **Ứng dụng → Sửa dock → Ng
 - VnExpress trả 404 cho yêu cầu không có User-Agent; trình duyệt TV luôn gửi User-Agent nên không ảnh hưởng.
 - App không giả User-Agent, Referer hay cookie và không vượt lớp chống bot của nguồn nào.
 - Nguồn AudioAZ và Sách Nói Việt Nam chỉ dùng cá nhân, có thể hỏng khi các trang đổi cấu trúc.
+
+## Đo ảnh và thử tìm kiếm ngày 2026-11-04
+
+Các số sau là mẫu tại thời điểm đo, không đại diện cho mọi ảnh. Đo kích thước file bằng GET trực tiếp, không sửa User-Agent, Referer hay cookie:
+
+| Nguồn mẫu | Kích thước pixel | Dung lượng |
+|---|---:|---:|
+| `d3t3ozftmdmh3i.cloudfront.net`, ảnh bìa VOV Tin nhanh | 3.000 × 3.000 | 1.384.083 byte |
+| Cùng CDN, ảnh một bài VOV | 3.000 × 3.000 | 1.595.070 byte |
+| `vcdn1-vnexpress.vnecdn.net`, ảnh minh họa bài báo, URL có tham số của chính CDN | 1.200 × 720 | 199.891 byte |
+| `i1-vnexpress.vnecdn.net`, ảnh bài podcast Điểm tin hiện tại | 1.973 × 1.172 | 2.813.293 byte |
+| `static.mediacdn.vn`, logo Tuổi Trẻ trong feed | 192 × 78 | 3.307 byte |
+| `img.transistorcdn.com`, ảnh bìa Fonos | 1.400 × 1.400 | 42.975 byte |
+| `f.audioaz.com`, hai ảnh bìa cùng sách, đo trên TV | 320 × 320; 600 × 600 | 15.052; 35.136 byte |
+
+Không tìm thấy URL `vcdn1` trong các RSS VnExpress được cấu hình lúc đo; mẫu trên là ảnh bài báo, không phải ảnh bài podcast. Yêu cầu URL `vcdn1` không có tham số trả 401; số trong bảng là bản URL có tham số công khai, không khẳng định là tệp gốc chưa biến đổi. Máy tính nhận HTTP 403 khi truy cập trang AudioAZ, còn TV đọc được trang và hai ảnh mẫu; không thử vượt lớp chặn.
+
+Trên QA55LS03BAKXXV, Tizen 6.5, ảnh VOV 3.000 × 3.000 tải bằng `Image`, vẽ canvas 240 × 240 và xuất JPEG dataURL thành công, không bị tainted trong phép thử mẫu này. Với ảnh khác nếu canvas từ chối, app hiển thị ảnh gốc và không lưu thumbnail.
+
+- Trước sửa, lần khởi chạy thứ hai, danh sách Đang nghe có 10 yêu cầu ảnh; Resource Timing ghi nhận hoàn tất từ 1.175 đến 2.649 ms kể từ điều hướng. Đây là mốc hoàn tất mạng, không phải lúc pixel được vẽ.
+- Sau sửa, lần khởi chạy thứ hai, mốc app gán thumbnail dataURL đầu tiên là 1.026 ms từ điều hướng; tám ảnh đang trong vùng nhìn dùng dataURL và không có yêu cầu ảnh mạng. Đây là mốc gán CSS, không phải phép đo hiển thị pixel. Danh sách lịch sử có thay đổi sau khi thử phát, vì vậy hai mốc không phải phép so sánh cùng dữ liệu hay cùng đại lượng. Một phép reload có MutationObserver ghi 851 ms đến lần gán đầu, cũng không phải phép đo pixel.
+- Đã dùng Web Inspector trên TV nhập `thoi su` và `Thời sự`: kết quả có nguồn VOV Thời sự và các bài tương ứng; chọn một kết quả thấy `currentTime` tăng đến 4,5 giây, không có lỗi media. Đây là thao tác tự động trong trang, chưa xác nhận tiếng nghe thực tế bằng tai.
+- Keydown mô phỏng trong Web Inspector: xuống chuyển focus từ input tới kết quả, lên về input, Escape làm input mất focus. Chưa xác nhận tương tác thực tế với bàn phím ảo, phím Back vật lý và cách gõ dấu tiếng Việt trên TV.
