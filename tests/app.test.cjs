@@ -40,15 +40,17 @@ test('pages keep a strict CSP: no inline script, style or handlers; network only
     assert.ok(!/http:/.test(html.match(/Content-Security-Policy" content="([^"]+)"/)[1]), page + ' allows plain http');
   }
 });
-test('widgets ask only for internet and the input device; the app is not a background app (the probe tests that)', () => {
+test('widgets ask only for internet and the input device, and stay installable (no background support, no spaces in the name)', () => {
   const names = (xml) => [...xml.matchAll(/privilege name="http:\/\/tizen\.org\/privilege\/([^"]+)"/g)].map((m) => m[1]).sort();
   const app = read('app/config.xml'), probe = read('probe/config.xml');
   assert.deepEqual(names(app), ['internet', 'tv.inputdevice']);
   assert.deepEqual(names(probe), ['internet', 'tv.inputdevice']);
   assert.match(app, /<tizen:application id="NgheTV0001\.Nghe" package="NgheTV0001"/);
   assert.match(probe, /<tizen:application id="NgheProbe1\.Probe" package="NgheProbe1"/);
+  // The TV refused to install the probe while it asked for background-support="enable" (2026-11-04).
   assert.match(app, /background-support="disable"/);
-  assert.match(probe, /background-support="enable"/);
+  assert.match(probe, /background-support="disable"/);
+  for (const xml of [app, probe]) assert.match(xml, /<name>[A-Za-z0-9]+<\/name>/);
 });
 test('sources.json: valid tabs, unique ids, https feeds of known types, every host listed for the preview proxy', () => {
   const data = JSON.parse(read('app/sources.json'));

@@ -3,11 +3,12 @@
  id="https://nghe-tv.invalid/probe" version="0.1.0" viewmodes="maximized">
  <tizen:application id="NgheProbe1.Probe" package="NgheProbe1" required_version="6.5"/>
  <tizen:profile name="tv-samsung"/>
- <name>Nghe Probe</name><icon src="icon.png"/><content src="index.html"/>
+ <name>NgheProbe</name><icon src="icon.png"/><content src="index.html"/>
  <feature name="http://tizen.org/feature/screen.size.all"/>
  <access origin="*" subdomains="true"/>
  <tizen:privilege name="http://tizen.org/privilege/internet"/>
  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
- <!-- The probe asks for background support to learn whether audio may keep playing while covered. -->
- <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="enable" encryption="disable"/>
+ <!-- Same settings as the app: the TV refused the probe with background-support="enable" (2026-11-04), so the
+      "Thử phát khi bị che" check measures exactly what the app gets. No spaces in <name>: it becomes the .wgt file name. -->
+ <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable"/>
 </widget>

@@ -10,13 +10,13 @@ Probe trả lời những điều app phụ thuộc mà chỉ TV thật mới bi
 ```sh
 # Dùng profile chứng chỉ đã tạo cho launcher (ví dụ tên "cyt")
 tizen package -t wgt -s cyt -- probe
-tizen install -n "Nghe Probe.wgt" -s <IP-TV>:26101 -- probe
+tizen install -n NgheProbe.wgt -s <IP-TV>:26101 -- probe
 tizen run -p NgheProbe1.Probe -s <IP-TV>:26101
 ```
 
 Probe tự chạy các kiểm tra và hiện kết quả (xanh = được, đỏ = không). Sau đó:
 
-1. Chọn **Thử phát khi bị che**, bấm **Home**, đợi khoảng 20 giây, rồi mở lại **Nghe Probe**. Dòng vàng cho biết âm thanh có phát tiếp khi app bị che hay không.
+1. Chọn **Thử phát khi bị che**, bấm **Home**, đợi khoảng 20 giây, rồi mở lại **NgheProbe**. Dòng vàng cho biết âm thanh có phát tiếp khi app bị che hay không.
 2. Chụp ảnh màn hình kết quả. Kết quả cũng nằm trong `localStorage` khoá `nghe-probe` (xem qua Web Inspector).
 
 | Kiểm tra | Nếu không đạt |
@@ -26,7 +26,7 @@ Probe tự chạy các kiểm tra và hiện kết quả (xanh = được, đỏ
 | Feed lớn VOV: "dừng sớm được" | Nếu "KHÔNG dừng sớm được", TV tải hết 30 MB: nên bỏ VOV Thời sự hoặc thêm hàm chuyển tiếp |
 | Phát thử từng nguồn | Nguồn đỏ sẽ báo lỗi khi phát trong app; ghi lại mã lỗi |
 | Sách Nói Việt Nam | Máy chủ có lớp chống bot; nếu TV cũng bị chặn thì bỏ nguồn này |
-| Phát khi bị che | Nếu **CÓ**, có thể đổi `background-support` của app sang `enable` để nghe tiếp khi về màn hình chính |
+| Phát khi bị che | Đo với cùng cài đặt như app (`background-support="disable"`); TV từ chối cài gói có `enable` |
 
 ## 2. Ký và cài app Nghe
 
@@ -37,6 +37,14 @@ tizen run -p NgheTV0001.Nghe -s <IP-TV>:26101
 ```
 
 Ghim lên màn hình chính của launcher: **Ứng dụng → Sửa dock → Nghe**.
+
+## Đã kiểm chứng trên TV (QA55LS03BAKXXV, Tizen 6.5)
+
+- 2026-11-04: app Nghe cài và chạy; tab, nguồn và danh sách bài hiện đúng.
+- 2026-11-04: app đã ký đọc được feed **không có CORS** (VnExpress) trực tiếp; không cần hàm chuyển tiếp.
+- 2026-11-04: ảnh bìa và ảnh bài từ CDN của VnExpress hiện trên TV.
+- 2026-11-04: TV **từ chối cài** gói có `background-support="enable"` ("Failed to install Tizen application");
+  cả app và probe giữ `disable`.
 
 ## 3. Danh sách kiểm tra trên TV (ghi kết quả)
 

@@ -141,7 +141,7 @@
     var url = found.vne || found.anchor;
     if (!url) { $('bg').textContent = 'Chưa có link audio (chạy lại các kiểm tra trước).'; return; }
     audio.volume = 0.35; audio.src = url; audio.play();
-    $('bg').textContent = 'Đang phát. Bấm Home, đợi khoảng 20 giây, rồi mở lại Nghe Probe.';
+    $('bg').textContent = 'Đang phát. Bấm Home, đợi khoảng 20 giây, rồi mở lại NgheProbe.';
   }
   document.addEventListener('visibilitychange', function () {
     if (!audio.src) return;
