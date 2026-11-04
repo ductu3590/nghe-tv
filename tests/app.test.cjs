@@ -94,3 +94,15 @@ test('search action is a labelled header icon immediately after the playing cont
   assert.match(read('app/app.js'), /if \(tab\.search\) return;/);
   assert.match(read('app/app.js'), /\$\('search-action'\)\.addEventListener\('click'/);
 });
+
+test('browse background uses a bundled JPEG and retains a fallback color', () => {
+  const css = read('app/style.css');
+  const body = css.match(/^body\{([^}]*)\}/m);
+  assert.ok(body);
+  assert.match(body[1], /#0a0d18\s+url\(["']?background\.jpg["']?\)/);
+  assert.doesNotMatch(body[1], /gradient\(/);
+  const image = fs.readFileSync(path.join(__dirname, '..', 'app', 'background.jpg'));
+  assert.equal(image.readUInt16BE(0), 0xffd8);
+  assert.equal(image.readUInt16BE(image.length - 2), 0xffd9);
+  assert.ok(image.length < 200000, 'background should stay lightweight');
+});

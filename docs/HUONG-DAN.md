@@ -108,3 +108,17 @@ Ngày 2026-11-04, QA55LS03BAKXXV / Tizen 6.5, bản app commit `fb74e7c`, kết 
 Trace riêng cho sáu lần chuyển tab ghi tám lần `CompositeLayers`, mỗi lần tối đa khoảng 674 ms; tác vụ raster trên các worker cộng dồn khoảng 9,1 giây trên nhiều luồng, không được hiểu là thời gian đồng hồ thực. Thay riêng nền thành màu phẳng làm giảm mạnh khoảng rAF dài, còn bỏ riêng bóng không làm vậy. Vì thế hai radial gradient toàn màn hình trên `body` là nguyên nhân chính được xác nhận trong phép thử này; kết quả không chứng minh chính xác cơ chế bên trong GPU hay chi phí riêng của từng gradient.
 
 Chi phí phụ cũng đo được: trong một lượt ba vòng chuyển tab, bảy lần `canvas.toDataURL` mất tổng 646 ms, tối đa 108 ms; mã giới hạn cache gọi `JSON.stringify` 392 lần, tổng 1.420 ms; đo vị trí phần tử 1.974 lần, tổng 370 ms. Các giá trị đo có instrumentation, cộng dồn toàn lượt và không phải thời gian bổ sung độc lập với nhau hoặc nguyên nhân duy nhất của mọi lần giật. Sau khi thay nền phẳng vẫn còn các khung chậm và một số lần xử lý phím mất trên 33 ms, vì vậy cần đo lại sau khi sửa nền trước khi ưu tiên tối ưu tiếp. Không thấy bằng chứng từ phép đo này để kết luận mạng là nguyên nhân chính.
+
+### Sau khi đóng gói ảnh nền tĩnh
+
+Thay nền hai gradient bằng JPEG `background.jpg` 1.920 × 1.080, 56.642 byte, được kết xuất từ chính CSS nền cũ; màu phẳng `#0a0d18` là dự phòng. So sánh ảnh gốc kết xuất và JPEG trên máy tính: sai khác tuyệt đối trung bình trên từng kênh R/G/B lần lượt khoảng 0,17 / 0,79 / 0,22 mức trong 255.
+
+Bản ký profile `CleanYourTizen2` đã cài trên cùng QA55LS03BAKXXV / Tizen 6.5. Web Inspector xác nhận TV tải được JPEG 1.920 × 1.080 và phím phải mô phỏng chuyển sang Tin tức, hiện bảy nguồn và 30 bài. Điều kiện đo như bảng trước: cache ấm, âm thanh tạm dừng, tám phím mô phỏng, mục tiêu 200 ms giữa phím; rAF là chỉ dấu trình duyệt, không phải đo pixel hay remote vật lý.
+
+| Lượt | rAF trung vị | rAF p95 | Lớn nhất | Khoảng trên 100 ms |
+|---|---:|---:|---:|---:|
+| Trước: hai gradient | 544 ms | 655 ms | 678 ms | 10/12 |
+| Sau: JPEG nền, lượt đầu | 17 ms | 50 ms | 152 ms | 3/115 |
+| Sau: JPEG nền, lượt lặp | 17 ms | 51 ms | 68 ms | 0/112 |
+
+Số mẫu và lịch phím thực tế khác nhau khi luồng giao diện bận; các số là kết quả của những lượt này, không phải bảo đảm tốc độ. Trong lượt lặp sau sửa, thời gian xử lý đồng bộ tám sự kiện phím có trung vị 58 ms, lớn nhất 83 ms, vì vậy vẫn còn khựng cần nghiên cứu riêng. Chưa thử đánh giá cảm nhận bằng remote vật lý.
