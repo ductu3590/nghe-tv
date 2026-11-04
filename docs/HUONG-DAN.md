@@ -45,6 +45,10 @@ Ghim lên màn hình chính của launcher: **Ứng dụng → Sửa dock → Ng
 - 2026-11-04: ảnh bìa và ảnh bài từ CDN của VnExpress hiện trên TV.
 - 2026-11-04: TV **từ chối cài** gói có `background-support="enable"` ("Failed to install Tizen application");
   cả app và probe giữ `disable`.
+- 2026-11-04: VnExpress phát tốt, tua 15 giây được, sau vài giây giao diện mờ dần chỉ còn hình nền.
+- 2026-11-04: AudioAZ mở được (trang sách và chương trên archive.org).
+- 2026-11-04: Sách Nói Việt Nam hiện được danh sách (RSS) nhưng **không phát được**: file mp3 nằm sau lớp chống bot
+  của máy chủ. Đã bỏ khỏi `sources.json`; app không giả trình duyệt để vượt lớp này.
 
 ## 3. Danh sách kiểm tra trên TV (ghi kết quả)
 

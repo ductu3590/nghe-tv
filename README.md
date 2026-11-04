@@ -7,7 +7,7 @@ App nghe tin tức, podcast và sách nói cho TV Samsung Tizen, tối giản th
 - **Màn đang nghe:** ảnh bìa làm hình nền mờ, tiêu đề, thanh tiến trình. Sau 6 giây giao diện mờ dần, chỉ còn hình và một dòng nhỏ.
 - **Remote:** OK hoặc Play/Pause để tạm dừng, ‹ › hoặc Rewind/FastForward để tua 15 giây, ▾ để hẹn giờ tự dừng (15/30/60 phút), Back để về danh sách (âm thanh vẫn phát).
 - **Nghe tiếp:** nhớ vị trí đã nghe trên TV; tab **Đang nghe** liệt kê 20 bài gần nhất; truyện dài và sách tự chuyển sang phần kế tiếp.
-- **Sách nói tổng hợp (AudioAZ, Sách Nói Việt Nam):** chỉ dùng cá nhân. Các trang này có thể đổi cấu trúc hoặc chặn bất cứ lúc nào.
+- **Sách nói tổng hợp (AudioAZ):** chỉ dùng cá nhân; trang có thể đổi cấu trúc hoặc chặn bất cứ lúc nào. Sách Nói Việt Nam đã bỏ vì TV không phát được file của trang này (lớp chống bot).
 
 Không chiếm phím Home, Power hay phím thương hiệu; chỉ đăng ký các phím media mà TV báo là hỗ trợ.
 

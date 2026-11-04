@@ -159,13 +159,6 @@
           "type": "audioaz",
           "url": "https://audioaz.com/vi",
           "next": "list"
-        },
-        {
-          "id": "sachnoivietnam",
-          "title": "Sách Nói Việt Nam",
-          "type": "wordpress",
-          "url": "https://sachnoivietnam.com/feed/",
-          "next": "list"
         }
       ]
     },
@@ -199,7 +192,6 @@
     "transistor.fm",
     "audioaz.com",
     "archive.org",
-    "sachnoivietnam.com",
     "amazonaws.com"
   ]
 }
