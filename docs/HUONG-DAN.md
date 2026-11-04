@@ -91,3 +91,20 @@ Trên QA55LS03BAKXXV, Tizen 6.5, ảnh VOV 3.000 × 3.000 tải bằng `Image`, 
 - Đã dùng Web Inspector trên TV nhập `thoi su` và `Thời sự`: kết quả có nguồn VOV Thời sự và các bài tương ứng; chọn một kết quả thấy `currentTime` tăng đến 4,5 giây, không có lỗi media. Đây là thao tác tự động trong trang, chưa xác nhận tiếng nghe thực tế bằng tai.
 - Keydown mô phỏng trong Web Inspector: xuống chuyển focus từ input tới kết quả, lên về input, Escape làm input mất focus. Chưa xác nhận tương tác thực tế với bàn phím ảo, phím Back vật lý và cách gõ dấu tiếng Việt trên TV.
 - Cập nhật vị trí nút tìm kiếm: bản ký `CleanYourTizen2` đã cài trên cùng TV. Web Inspector xác nhận biểu tượng nằm ngay sau nút đang nghe (mép lần lượt 1037 và 1065 px khi nút đang phát hiện), không còn tab Tìm; phím mô phỏng phải từ nút đang nghe tới biểu tượng, Enter mở ô tìm, lên/xuống chuyển giữa biểu tượng, ô nhập và kết quả, Back từ biểu tượng quay về danh mục trước. Chưa thử các phím remote vật lý hoặc bàn phím ảo.
+
+## Đo độ mượt chuyển tab trên TV
+
+Ngày 2026-11-04, QA55LS03BAKXXV / Tizen 6.5, bản app commit `fb74e7c`, kết nối Web Inspector; âm thanh tạm dừng, dữ liệu đã có cache. Điều khiển là sự kiện D-pad tổng hợp trên trang, không phải remote vật lý. Mỗi lượt đối chứng gửi tám phím trái/phải, cách nhau mục tiêu 200 ms; ghi khoảng cách giữa các callback `requestAnimationFrame` (rAF). Đây là chỉ dấu lịch khung hình của trình duyệt, không phải đo trực tiếp pixel đã hiển thị. Khoảng 200 ms là lịch hẹn; khi luồng bận, phím thực tế bị trễ. Các sửa CSS phục vụ đo chỉ áp dụng tạm trong Web Inspector và đã được gỡ.
+
+| Nền và hiệu ứng | rAF trung vị | rAF p95 | Lớn nhất | Khoảng trên 100 ms |
+|---|---:|---:|---:|---:|
+| Bình thường, hai radial gradient | 544 ms | 655 ms | 678 ms | 10/12 |
+| Hai gradient, bỏ bóng thẻ nguồn | 541 ms | 628 ms | 673 ms | 10/11 |
+| Nền một màu, giữ bóng | 17 ms | 51 ms | 72 ms | 0/116 |
+| Nền một màu, bỏ bóng | 17 ms | 41 ms | 68 ms | 0/118 |
+
+Đo lặp với thứ tự khác: nền phẳng p95 51 ms, tối đa 85 ms; một gradient p95 354 ms, tối đa 370 ms; hai gradient p95 667 ms, tối đa 672 ms. Mỗi lượt có ít mẫu, nên p95 chỉ mô tả lượt đo này. Khi không thao tác, rAF trung vị khoảng 17 ms, p95 17,3 ms và không có khoảng trên 33 ms trong lượt đo đầu.
+
+Trace riêng cho sáu lần chuyển tab ghi tám lần `CompositeLayers`, mỗi lần tối đa khoảng 674 ms; tác vụ raster trên các worker cộng dồn khoảng 9,1 giây trên nhiều luồng, không được hiểu là thời gian đồng hồ thực. Thay riêng nền thành màu phẳng làm giảm mạnh khoảng rAF dài, còn bỏ riêng bóng không làm vậy. Vì thế hai radial gradient toàn màn hình trên `body` là nguyên nhân chính được xác nhận trong phép thử này; kết quả không chứng minh chính xác cơ chế bên trong GPU hay chi phí riêng của từng gradient.
+
+Chi phí phụ cũng đo được: trong một lượt ba vòng chuyển tab, bảy lần `canvas.toDataURL` mất tổng 646 ms, tối đa 108 ms; mã giới hạn cache gọi `JSON.stringify` 392 lần, tổng 1.420 ms; đo vị trí phần tử 1.974 lần, tổng 370 ms. Các giá trị đo có instrumentation, cộng dồn toàn lượt và không phải thời gian bổ sung độc lập với nhau hoặc nguyên nhân duy nhất của mọi lần giật. Sau khi thay nền phẳng vẫn còn các khung chậm và một số lần xử lý phím mất trên 33 ms, vì vậy cần đo lại sau khi sửa nền trước khi ưu tiên tối ưu tiếp. Không thấy bằng chứng từ phép đo này để kết luận mạng là nguyên nhân chính.
