@@ -140,3 +140,7 @@ Số mẫu và lịch phím thực tế khác nhau khi luồng giao diện bận
 - Trên bản thử, phát đến 2,85 giây, chọn hết bài, kích hoạt sự kiện ended mô phỏng: âm thanh tạm dừng, hàng chờ còn nguyên, Back làm lớp đen ẩn. TV báo không hỗ trợ CSS `inset`; đã sửa CSS dùng bốn cạnh, và bản ký sau đó cho lớp đen kích thước đúng 1.920 × 1.080 khi kiểm tra hình học. Không khẳng định đã thấy màn hình vật lý bằng mắt hay kiểm tra phím remote thật.
 - Chuyển hàng chờ sau ended, lưu thứ tự ghim sau reload và ưu tiên chế độ ngủ so với hàng chờ đã thử trong bản xem trước tự động. Chưa xác nhận bằng thao tác vật lý trên TV; chưa thử hết các nguồn, định dạng và tốc độ.
 - Sau khi mở lại Nghe trên TV, bản ký có sửa bốn cạnh đã được thử qua Web Inspector: 1,25× được chọn nhưng sau khoảng bốn giây app đo và trả về 1× kèm thông báo TV không hỗ trợ; lớp đen hiện với khung 1.920 × 1.080, sự kiện ended mô phỏng làm audio tạm dừng, Escape mô phỏng làm lớp đen biến mất. Không phải kiểm tra remote vật lý hay tắt TV. Dữ liệu người dùng sau thử đã được khôi phục.
+
+## Tizen 5.0 (UA55RU8000KXXV)
+
+Ngày 2026-11-06, firmware T-MSMUABC-1510.0: bản `d2e394e` cài được với `required_version="5.0"` (chỉ sửa trong bản đóng gói) và chứng chỉ Tizen thường. Qua Web Inspector với phím OK mô phỏng: danh mục hiện đủ, feed VnExpress tải được, âm thanh phát và thời gian chạy đều. Chưa kiểm tra bằng remote thật, chưa thử sách nói, tìm kiếm và hẹn giờ ngủ.
