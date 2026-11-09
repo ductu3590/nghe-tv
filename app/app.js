@@ -648,27 +648,6 @@
     else if (name === 'ArrowUp' || name === 'ArrowDown') moveWithin(focusables($('sleep-options')), name);
     else if (name === 'Enter' && document.activeElement.click) document.activeElement.click();
   }
-  var speedCheck = 0;
-  function verifySpeed() {
-    var desired = audio.playbackRate, token = ++speedCheck, src = audio.currentSrc;
-    if (desired === 1 || audio.paused) return;
-    var start = audio.currentTime, started = Date.now();
-    setTimeout(function () {
-      if (token !== speedCheck || audio.currentSrc !== src || audio.paused) return;
-      var elapsed = (Date.now() - started) / 1000, advance = audio.currentTime - start;
-      if (audio.seeking || audio.readyState < 3 || advance < 1) {
-        audio.playbackRate = 1; toast('Chưa xác minh được tốc độ; đã về 1×.'); return;
-      }
-      if (!player.speedMatches(desired, advance, elapsed)) {
-        audio.playbackRate = 1; toast('TV không hỗ trợ tốc độ này; đã về 1×.');
-      } else toast('Tốc độ: ' + desired + '×');
-    }, 4000);
-  }
-  function cycleSpeed() {
-    var desired = player.nextSpeed(audio.playbackRate || 1);
-    try { audio.playbackRate = desired; toast(desired === 1 ? 'Tốc độ: 1×' : 'Đang kiểm tra tốc độ ' + desired + '×…'); verifySpeed(); }
-    catch (error) { toast('TV không hỗ trợ tốc độ này.'); }
-  }
   audio.addEventListener('timeupdate', function () {
     var duration = audio.duration || (now.entry && now.entry.duration) || 0;
     $('p-time').textContent = player.formatTime(audio.currentTime);
@@ -679,7 +658,7 @@
     $('p-fill').style.webkitTransform = 'scaleX(' + ratio + ')';
     if (Date.now() - saveAt > 10000) { saveAt = Date.now(); saveProgressNow(); }
   });
-  audio.addEventListener('play', function () { updateNow(); wake(); verifySpeed(); });
+  audio.addEventListener('play', function () { updateNow(); wake(); });
   audio.addEventListener('pause', function () { updateNow(); saveProgressNow(); $('player').classList.remove('calm'); });
   audio.addEventListener('ended', function () {
     if (now.entry) { progress = player.saveProgress(progress, now.entry.url, audio.duration, audio.duration, Date.now()); writeJson(PROGRESS_KEY, progress); }
@@ -773,7 +752,6 @@
     else if (name === 'ArrowRight' || name === 'MediaFastForward') seekBy(SEEK);
     else if (name === 'ArrowDown') $('sleep-action').focus();
     else if (name === 'ArrowUp' && inControls) $('player').focus();
-    else if (name === 'ArrowUp') cycleSpeed();
     else if (name === 'MediaTrackNext') step(1);
     else if (name === 'MediaTrackPrevious') step(-1);
     else if (name === 'MediaStop') { playGeneration += 1; audio.pause(); showBrowse(); }

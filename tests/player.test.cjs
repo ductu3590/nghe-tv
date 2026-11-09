@@ -58,17 +58,6 @@ test('cache freshness and list subtitles', () => {
   assert.equal(player.subtitle({folder: true, tracks: [1, 2]}, 0, now), '2 phần');
 });
 
-test('playback speed cycles through the supported options', () => {
-  assert.deepEqual([1, 1.25, 1.5, 0.75, 99].map(player.nextSpeed), [1.25, 1.5, 0.75, 1, 1]);
-});
-
-test('speed verification detects a TV that accepts a value but plays at normal speed', () => {
-  assert.equal(player.speedMatches(1.25, 4, 4), false);
-  assert.equal(player.speedMatches(1.5, 6, 4), true);
-  assert.equal(player.speedMatches(0.75, 3, 4), true);
-  assert.equal(player.speedMatches(1.5, 0, 4), false);
-});
-
 test('category continuation skips the current episode, folders and previously played items', () => {
   const list = [{url:'https://x/a'}, {url:'https://x/folder',folder:true}, {url:'https://x/b'}, {url:'https://x/c'}];
   assert.equal(player.nextCandidate(list, 'https://x/a', {}), 2);

@@ -6,7 +6,6 @@
 }(this, function () {
   'use strict';
   var SLEEP_STEPS = [0, 15, 30, 60, 'end'];
-  var SPEEDS = [1, 1.25, 1.5, 0.75];
   var PROGRESS_MAX = 200, RECENT_MAX = 20, MIN_RESUME = 15, END_MARGIN = 30;
 
   function pad(value) { return (value < 10 ? '0' : '') + value; }
@@ -57,9 +56,6 @@
     return SLEEP_STEPS[(at + 1) % SLEEP_STEPS.length];
   }
   function sleepLabel(minutes) { return minutes === 'end' ? 'Hết bài: dừng · màn hình đen · TV vẫn bật' : minutes ? 'Tự dừng sau ' + minutes + ' phút' : 'Hẹn giờ: tắt'; }
-  function nextSpeed(speed) { var at = SPEEDS.indexOf(speed); return SPEEDS[(at + 1) % SPEEDS.length]; }
-  function speedMatches(speed, seconds, wallSeconds) { return wallSeconds > 0 && seconds > 0 && Math.abs(seconds / wallSeconds - speed) < 0.12; }
-
   // Progress per audio URL: {t: seconds heard, d: duration, at: when}. Oldest entries go first.
   function saveProgress(map, url, time, duration, now) {
     var next = {}, keys = [];
@@ -106,6 +102,6 @@
     return parts.join(' · ');
   }
   return {SLEEP_STEPS: SLEEP_STEPS, formatTime: formatTime, seek: seek, nextIndex: nextIndex, nextCandidate: nextCandidate, categorySources: categorySources, nextSleep: nextSleep,
-    sleepLabel: sleepLabel, nextSpeed: nextSpeed, speedMatches: speedMatches, saveProgress: saveProgress, resumeAt: resumeAt, percent: percent, addRecent: addRecent,
+    sleepLabel: sleepLabel, saveProgress: saveProgress, resumeAt: resumeAt, percent: percent, addRecent: addRecent,
     isFresh: isFresh, subtitle: subtitle};
 }));

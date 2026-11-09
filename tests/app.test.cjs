@@ -125,3 +125,9 @@ test('player exposes remote-focusable labelled transport and timer controls', ()
   assert.match(html, /id="sleep-menu"[^>]*role="dialog"/);
   assert.match(html, /id="sleep-action"[^>]*aria-expanded="false"/);
 });
+
+test('the UI and player do not offer an ineffective playback-speed control', () => {
+  assert.doesNotMatch(read('app/app.js'), /playbackRate|cycleSpeed|verifySpeed/);
+  assert.doesNotMatch(read('app/index.html'), /tốc độ/);
+  assert.doesNotMatch(read('app/player.js'), /nextSpeed|speedMatches/);
+});
