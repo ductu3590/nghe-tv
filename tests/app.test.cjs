@@ -5,7 +5,7 @@ const path = require('node:path');
 const read = (name) => fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
 const preview = require('../tools/preview.cjs');
 
-const SCRIPTS = ['app/app.js', 'app/feeds.js', 'app/player.js', 'probe/probe.js'];
+const SCRIPTS = ['app/app.js', 'app/feeds.js', 'app/player.js', 'app/search.js', 'app/images.js', 'app/library.js', 'app/organize.js', 'probe/probe.js'];
 
 test('never takes Home, Power or brand keys; only registers media keys the TV reports as supported', () => {
   for (const file of SCRIPTS) {
@@ -85,4 +85,49 @@ test('the app reads every source directly on the TV; the proxy exists only in th
   const app = read('app/app.js');
   assert.match(app, /var PREVIEW = !tv && \/\^http\/\.test\(location\.protocol\)/);
   assert.match(app, /function viaProxy\(url\) \{ return PREVIEW && \/\^https:\\\/\\\/\/\.test\(url\) \? '\/proxy\?url=' \+ encodeURIComponent\(url\) : url; \}/);
+});
+
+test('search action is a labelled header icon immediately after the playing control, not a visible category tab', () => {
+  const html = read('app/index.html');
+  const header = html.match(/<header class="top">([\s\S]*?)<\/header>/)[1];
+  assert.match(header, /id="now"[\s\S]*id="search-action"[^>]*aria-label="Tìm"[\s\S]*<svg[\s\S]*id="clock"/);
+  assert.match(read('app/app.js'), /if \(tab\.search\) return;/);
+  assert.match(read('app/app.js'), /\$\('search-action'\)\.addEventListener\('click'/);
+});
+
+test('browse background uses a bundled JPEG and retains a fallback color', () => {
+  const css = read('app/style.css');
+  const body = css.match(/^body\{([^}]*)\}/m);
+  assert.ok(body);
+  assert.match(body[1], /#0a0d18\s+url\(["']?background\.jpg["']?\)/);
+  assert.doesNotMatch(body[1], /gradient\(/);
+  const image = fs.readFileSync(path.join(__dirname, '..', 'app', 'background.jpg'));
+  assert.equal(image.readUInt16BE(0), 0xffd8);
+  assert.equal(image.readUInt16BE(image.length - 2), 0xffd9);
+  assert.ok(image.length < 200000, 'background should stay lightweight');
+});
+
+test('sleep blackout and action menu use edges supported by Tizen 6.5', () => {
+  const css = read('app/style.css');
+  for (const selector of ['sleep-black', 'actions-overlay']) {
+    const rule = css.match(new RegExp('\\.' + selector + '\\{([^}]*)\\}'))[1];
+    assert.match(rule, /position:fixed/);
+    for (const edge of ['top', 'right', 'bottom', 'left']) assert.match(rule, new RegExp(edge + ':0'));
+    assert.doesNotMatch(rule, /\binset:/);
+  }
+});
+
+test('player exposes remote-focusable labelled transport and timer controls', () => {
+  const html = read('app/index.html');
+  for (const id of ['seek-back-action', 'play-action', 'seek-forward-action', 'sleep-action']) {
+    assert.match(html, new RegExp('<button id="' + id + '"[^>]*aria-label="[^"]+"'));
+  }
+  assert.match(html, /id="sleep-menu"[^>]*role="dialog"/);
+  assert.match(html, /id="sleep-action"[^>]*aria-expanded="false"/);
+});
+
+test('the UI and player do not offer an ineffective playback-speed control', () => {
+  assert.doesNotMatch(read('app/app.js'), /playbackRate|cycleSpeed|verifySpeed/);
+  assert.doesNotMatch(read('app/index.html'), /tốc độ/);
+  assert.doesNotMatch(read('app/player.js'), /nextSpeed|speedMatches/);
 });

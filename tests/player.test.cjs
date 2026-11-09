@@ -20,8 +20,9 @@ test('auto-next follows the source order, stops at the ends, and is off by defau
   assert.equal(player.nextIndex(0, 0, 'list'), -1);
   assert.equal(player.nextIndex(5, 9, 'list'), -1);
 });
-test('sleep timer cycles off → 15 → 30 → 60 → off', () => {
-  assert.deepEqual([0, 15, 30, 60, 7].map(player.nextSleep), [15, 30, 60, 0, 0]);
+test('sleep timer cycles through minutes and the end-of-track option', () => {
+  assert.deepEqual([0, 15, 30, 60, 'end', 7].map(player.nextSleep), [15, 30, 60, 'end', 0, 0]);
+  assert.match(player.sleepLabel('end'), /Hết bài/);
   assert.equal(player.sleepLabel(0), 'Hẹn giờ: tắt');
   assert.equal(player.sleepLabel(30), 'Tự dừng sau 30 phút');
 });
@@ -55,4 +56,20 @@ test('cache freshness and list subtitles', () => {
   assert.equal(player.subtitle({date: new Date(2026, 10, 4, 6).getTime(), duration: 888}, 40, now), 'Hôm nay · 14:48 · đã nghe 40%');
   assert.equal(player.subtitle({date: new Date(2026, 10, 3, 21).getTime()}, 99, now), '3/11 · đã nghe xong');
   assert.equal(player.subtitle({folder: true, tracks: [1, 2]}, 0, now), '2 phần');
+});
+
+test('category continuation skips the current episode, folders and previously played items', () => {
+  const list = [{url:'https://x/a'}, {url:'https://x/folder',folder:true}, {url:'https://x/b'}, {url:'https://x/c'}];
+  assert.equal(player.nextCandidate(list, 'https://x/a', {}), 2);
+  assert.equal(player.nextCandidate(list, 'https://x/c', {'https://x/a':true}), 2);
+  assert.equal(player.nextCandidate(list, 'https://x/b', {'https://x/a':true,'https://x/c':true}), -1);
+  assert.equal(player.nextCandidate([{url:'http://x/a'}], '', {}), -1);
+  assert.equal(player.nextCandidate(null, '', {}), -1);
+});
+
+test('category continuation stays within the source tab and excludes non-RSS fallback', () => {
+  const tabs = [{sources:[{id:'a',type:'rss'},{id:'book',type:'audioaz'},{id:'b',type:'rss'}]}, {sources:[{id:'other',type:'rss'}]}];
+  assert.deepEqual(player.categorySources(tabs, 'b').map(s => s.id), ['b','a']);
+  assert.deepEqual(player.categorySources(tabs, 'book').map(s => s.id), ['a','b']);
+  assert.deepEqual(player.categorySources(tabs, 'missing'), []);
 });
