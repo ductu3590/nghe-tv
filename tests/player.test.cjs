@@ -68,3 +68,19 @@ test('speed verification detects a TV that accepts a value but plays at normal s
   assert.equal(player.speedMatches(0.75, 3, 4), true);
   assert.equal(player.speedMatches(1.5, 0, 4), false);
 });
+
+test('category continuation skips the current episode, folders and previously played items', () => {
+  const list = [{url:'https://x/a'}, {url:'https://x/folder',folder:true}, {url:'https://x/b'}, {url:'https://x/c'}];
+  assert.equal(player.nextCandidate(list, 'https://x/a', {}), 2);
+  assert.equal(player.nextCandidate(list, 'https://x/c', {'https://x/a':true}), 2);
+  assert.equal(player.nextCandidate(list, 'https://x/b', {'https://x/a':true,'https://x/c':true}), -1);
+  assert.equal(player.nextCandidate([{url:'http://x/a'}], '', {}), -1);
+  assert.equal(player.nextCandidate(null, '', {}), -1);
+});
+
+test('category continuation stays within the source tab and excludes non-RSS fallback', () => {
+  const tabs = [{sources:[{id:'a',type:'rss'},{id:'book',type:'audioaz'},{id:'b',type:'rss'}]}, {sources:[{id:'other',type:'rss'}]}];
+  assert.deepEqual(player.categorySources(tabs, 'b').map(s => s.id), ['b','a']);
+  assert.deepEqual(player.categorySources(tabs, 'book').map(s => s.id), ['a','b']);
+  assert.deepEqual(player.categorySources(tabs, 'missing'), []);
+});

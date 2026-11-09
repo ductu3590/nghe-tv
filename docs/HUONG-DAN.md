@@ -130,7 +130,7 @@ Số mẫu và lịch phím thực tế khác nhau khi luồng giao diện bận
 - Tab **Yêu thích** lưu nguồn và bài; tab **Nghe tiếp** chứa hàng chờ phát theo thứ tự thêm. Dữ liệu nằm trong localStorage của TV, tối đa 100 mục mỗi danh sách. Nguồn không còn trong danh sách hiện tại không hiển thị; bài không còn khả dụng ở nguồn có thể không phát được.
 - Focus nguồn rồi bấm OK để thêm/bỏ yêu thích, ghim, đổi vị trí; ghim và thứ tự áp dụng trong từng tab nguồn. Focus bài rồi bấm phải để yêu thích, thêm/bỏ hàng chờ, đánh dấu đã nghe/chưa nghe. Đánh dấu chưa nghe thủ công có hiệu lực đến khi đánh dấu lại hoặc nghe hết bài.
 - Trong màn phát, bấm lên để chọn 1,25× / 1,5× / 0,75× / 1×. App đo tiến độ phát khoảng bốn giây; nếu TV không thật sự đổi tốc độ hoặc không xác minh được, app báo và trở về 1×. Kết quả phụ thuộc TV và nguồn.
-- Bấm xuống để chọn 15/30/60 phút hoặc **Hết bài**. Chế độ hết bài báo rõ TV vẫn bật, sau khoảng 2,5 giây hiển thị nền đen và tiếp tục phát; hết bài thì dừng, không tự chuyển hàng chờ/chương. Bấm Back để hiện lại và hủy chế độ. Đây là nền đen của app, không tắt TV hoặc đèn nền. Khi app bị che hoặc bị hệ thống dừng thì việc hẹn giờ không được bảo đảm.
+- Trong màn nghe, bấm xuống để chọn biểu tượng đồng hồ, rồi OK để mở bảng 15/30/60 phút hoặc **Hết bài**. Chế độ hết bài báo rõ TV vẫn bật, sau khoảng 2,5 giây hiển thị nền đen và tiếp tục phát; hết bài thì dừng, không tự chuyển hàng chờ/chương. Bấm Back để hiện lại và hủy chế độ. Đây là nền đen của app, không tắt TV hoặc đèn nền. Khi app bị che hoặc bị hệ thống dừng thì việc hẹn giờ không được bảo đảm.
 - Không tự tắt nguồn: [RemotePower API của Samsung](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/remotepower-api.html?device=htv) được tài liệu hóa cho thiết bị B2B và quyền Partner, chưa có căn cứ cho TV gia dụng QA55LS03BAKXXV/profile hiện tại. App không đăng ký phím Power.
 
 ### Kiểm thử ngày 2026-11-04
@@ -144,3 +144,10 @@ Số mẫu và lịch phím thực tế khác nhau khi luồng giao diện bận
 ## Tizen 5.0 (UA55RU8000KXXV)
 
 Ngày 2026-11-06, firmware T-MSMUABC-1510.0: bản `d2e394e` cài được với `required_version="5.0"` (chỉ sửa trong bản đóng gói) và chứng chỉ Tizen thường. Qua Web Inspector với phím OK mô phỏng: danh mục hiện đủ, feed VnExpress tải được, âm thanh phát và thời gian chạy đều. Chưa kiểm tra bằng remote thật, chưa thử sách nói, tìm kiếm và hẹn giờ ngủ.
+
+
+## Tự phát cùng chuyên mục và nút hẹn giờ
+
+- Khi hết bài, ưu tiên dừng nếu đã chọn **Hết bài**, tiếp đó phát hàng chờ, tiếp tục chương/truyện theo thứ tự, sau cùng chọn bài khác từ nguồn đang nghe hoặc nguồn RSS khác trong cùng tab chuyên mục. Không tự lặp lại bài đã phát trong cùng chuỗi; dừng nếu không tìm thấy bài phù hợp. Nguồn lỗi được bỏ qua.
+- Trên màn phát, bấm xuống để focus biểu tượng đồng hồ, OK mở các lựa chọn, lên/xuống chọn và OK xác nhận; Back đóng. Trong hàng biểu tượng có thể dùng trái/phải chọn tua lùi, phát/tạm dừng, tua tới và hẹn giờ.
+- 2026-11-09: đã thử trên bản xem trước tự động với feed giả lập: tự chuyển trong cùng nguồn và sang nguồn khác trong cùng tab, không chuyển khi đã hết ứng viên, bỏ qua yêu cầu tự phát khi người dùng chọn bài khác, ưu tiên hàng chờ và chế độ Hết bài. Đã thử focus biểu tượng, mở bảng hẹn giờ và màn đen bằng phím giả lập. Các kết quả này chưa xác nhận trên TV thực.

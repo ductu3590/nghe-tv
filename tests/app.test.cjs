@@ -116,3 +116,12 @@ test('sleep blackout and action menu use edges supported by Tizen 6.5', () => {
     assert.doesNotMatch(rule, /\binset:/);
   }
 });
+
+test('player exposes remote-focusable labelled transport and timer controls', () => {
+  const html = read('app/index.html');
+  for (const id of ['seek-back-action', 'play-action', 'seek-forward-action', 'sleep-action']) {
+    assert.match(html, new RegExp('<button id="' + id + '"[^>]*aria-label="[^"]+"'));
+  }
+  assert.match(html, /id="sleep-menu"[^>]*role="dialog"/);
+  assert.match(html, /id="sleep-action"[^>]*aria-expanded="false"/);
+});

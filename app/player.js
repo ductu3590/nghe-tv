@@ -28,6 +28,30 @@
     if (mode === 'list') return index + 1 < length ? index + 1 : -1;
     return -1;
   }
+  // Pick another playable episode, starting after the current one and wrapping only once.
+  function nextCandidate(items, currentUrl, seen) {
+    var list = Array.isArray(items) ? items : [], current = -1, i, at, item;
+    for (i = 0; i < list.length; i += 1) if (list[i] && list[i].url === currentUrl) { current = i; break; }
+    for (i = 1; i <= list.length; i += 1) {
+      at = (current + i) % list.length; item = list[at];
+      if (item && !item.folder && typeof item.url === 'string' && /^https:\/\//.test(item.url) && item.url !== currentUrl && !Object.prototype.hasOwnProperty.call(seen || {}, item.url)) return at;
+    }
+    return -1;
+  }
+  function categorySources(tabs, sourceId) {
+    var category = null, current = null, out = [];
+    (Array.isArray(tabs) ? tabs : []).some(function (tab) {
+      var sources = tab && Array.isArray(tab.sources) ? tab.sources : [];
+      return sources.some(function (source) {
+        if (source && source.id === sourceId) { category = sources; current = source; return true; }
+        return false;
+      });
+    });
+    if (!category) return out;
+    if (current.type === 'rss') out.push(current);
+    category.forEach(function (source) { if (source && source.type === 'rss' && source.id !== sourceId) out.push(source); });
+    return out;
+  }
   function nextSleep(minutes) {
     var at = SLEEP_STEPS.indexOf(minutes);
     return SLEEP_STEPS[(at + 1) % SLEEP_STEPS.length];
@@ -81,7 +105,7 @@
     if (item.folder) parts.push(item.tracks ? item.tracks.length + ' phần' : 'Mở để xem các phần');
     return parts.join(' · ');
   }
-  return {SLEEP_STEPS: SLEEP_STEPS, formatTime: formatTime, seek: seek, nextIndex: nextIndex, nextSleep: nextSleep,
+  return {SLEEP_STEPS: SLEEP_STEPS, formatTime: formatTime, seek: seek, nextIndex: nextIndex, nextCandidate: nextCandidate, categorySources: categorySources, nextSleep: nextSleep,
     sleepLabel: sleepLabel, nextSpeed: nextSpeed, speedMatches: speedMatches, saveProgress: saveProgress, resumeAt: resumeAt, percent: percent, addRecent: addRecent,
     isFresh: isFresh, subtitle: subtitle};
 }));

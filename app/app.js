@@ -30,7 +30,7 @@
   var queue = library.items(readJson('nghe-queue', []), true);
   var playedMarks = readJson('nghe-played', {}), sourcePrefs = readJson('nghe-source-order', {});
   if (!sourcePrefs || typeof sourcePrefs !== 'object' || Array.isArray(sourcePrefs)) sourcePrefs = {};
-  var actionReturn = null;
+  var actionReturn = null, playGeneration = 0, autoSeen = {};
 
 
   function toast(text) {
@@ -406,6 +406,7 @@
       return;
     }
     if (state.tabs[state.tab].queue) { queue = library.removeQueued(queue, item.url); writeJson('nghe-queue', queue); }
+    autoSeen = {};
     play(state.list, index, source || findSource(item.sourceId));
   }
   function findSource(id) {
@@ -498,6 +499,7 @@
   function play(list, index, source) {
     var entry = list[index];
     if (!entry || !entry.url) return;
+    playGeneration += 1; autoSeen[entry.url] = true;
     saveProgressNow();
     // From "Đang nghe" the list is a history, not a series: never auto-advance through it.
     var fromRecent = state.tabs[state.tab] && (state.tabs[state.tab].recent || state.tabs[state.tab].search || state.tabs[state.tab].queue || state.tabs[state.tab].favorites) && list === state.list;
@@ -530,6 +532,8 @@
     $('now-title').textContent = now.entry.title;
     pill.classList.toggle('paused', audio.paused);
     $('p-state').textContent = audio.paused ? 'Tạm dừng' : '';
+    $('icon-play').hidden = !audio.paused; $('icon-pause').hidden = audio.paused;
+    $('play-action').setAttribute('aria-label', audio.paused ? 'Phát' : 'Tạm dừng');
   }
   function saveProgressNow() {
     if (!now.entry || !(audio.currentTime > 0)) return;
@@ -540,6 +544,7 @@
     var entry = now.entry, image = entry.image || '';
     state.view = 'player';
     $('browse').hidden = true; $('player').hidden = false;
+    $('sleep-menu').hidden = true; $('sleep-action').setAttribute('aria-expanded', 'false'); $('player').focus();
     $('backdrop').style.backgroundImage = image ? cssUrl(image) : '';
     $('cover').style.backgroundImage = image ? cssUrl(image) : '';
     $('player').classList.toggle('no-art', !image);
@@ -550,7 +555,7 @@
   }
   function showBrowse() {
     state.view = 'browse';
-    $('player').hidden = true; $('browse').hidden = false;
+    $('player').hidden = true; $('browse').hidden = false; $('sleep-menu').hidden = true; $('sleep-action').setAttribute('aria-expanded', 'false');
     clearTimeout(calmTimer);
     var target = state.zone === 'list' ? listEl.querySelector('.item.playing') || listEl.firstChild : sourcesEl.children[state.source];
     (target && target.focus ? target : $('now')).focus();
@@ -559,10 +564,11 @@
   function wake() {
     $('player').classList.remove('calm');
     clearTimeout(calmTimer);
-    calmTimer = setTimeout(function () { if (state.view === 'player' && !audio.paused) $('player').classList.add('calm'); }, CALM_MS);
+    calmTimer = setTimeout(function () { if (state.view === 'player' && !audio.paused && $('sleep-menu').hidden) $('player').classList.add('calm'); }, CALM_MS);
   }
   function toggle() {
     if (!now.entry) return;
+    playGeneration += 1;
     if (audio.paused) { var attempt = audio.play(); if (attempt && attempt.catch) attempt.catch(function () { toast('TV chưa phát được bài này.'); }); }
     else audio.pause();
   }
@@ -574,20 +580,73 @@
     var mode = direction > 0 ? 'list' : 'newer';
     var next = direction === 0 ? player.nextIndex(now.list.length, now.index, now.next) :
       player.nextIndex(now.list.length, now.index, mode);
-    if (next >= 0) play(now.list, next, now.source);
-    else if (direction === 0) { updateNow(); }
+    if (direction !== 0) autoSeen = {};
+    if (next >= 0 && (direction !== 0 || !Object.prototype.hasOwnProperty.call(autoSeen, now.list[next].url))) { play(now.list, next, now.source); return true; }
+    if (direction === 0) updateNow();
+    return false;
   }
-  function cycleSleep() {
-    sleepMinutes = player.nextSleep(sleepMinutes);
+  // Prefer the same feed; then other RSS feeds in the same category, never unrelated tabs.
+  function continueCategory() {
+    var source = now.source || findSource(now.entry && now.entry.sourceId);
+    var generation = playGeneration, currentUrl = now.entry && now.entry.url, at = 0;
+    if (!source || !currentUrl) return;
+    var candidates = player.categorySources(state.baseTabs, source.id);
+    if (!candidates.length) return;
+    toast('Đang tìm bài tiếp theo…');
+    function nextFeed() {
+      if (generation !== playGeneration || sleepMinutes === 'end') return;
+      if (at >= candidates.length) { toast('Đã hết bài trong chuyên mục.'); return; }
+      var feedSource = candidates[at++], handled = false;
+      loadSource(feedSource, null, function (error, value) {
+        if (handled) return; handled = true;
+        if (generation !== playGeneration || sleepMinutes === 'end') return;
+        var items = !error && value && value.items || [], index = player.nextCandidate(items, currentUrl, autoSeen);
+        if (index < 0) { nextFeed(); return; }
+        var entries = items.map(function (item) { return {title: item.title, url: item.url, date: item.date,
+          duration: item.duration, image: item.image || value.image, folder: !!item.folder,
+          sourceId: feedSource.id, sourceTitle: feedSource.title}; });
+        play(entries, index, feedSource);
+      });
+    }
+    nextFeed();
+  }
+  function setSleep(value) {
+    sleepMinutes = value;
     clearTimeout(sleepTimer); clearTimeout(blackTimer);
     $('sleep-black').hidden = true;
     if (sleepMinutes === 'end') blackTimer = setTimeout(function () { if (sleepMinutes === 'end') $('sleep-black').hidden = false; }, 2500);
     var label = $('p-sleep');
     label.textContent = player.sleepLabel(sleepMinutes); label.hidden = !sleepMinutes;
+    $('sleep-action').classList.toggle('on', !!sleepMinutes);
     toast(player.sleepLabel(sleepMinutes));
     if (sleepMinutes && sleepMinutes !== 'end') {
-      sleepTimer = setTimeout(function () { audio.pause(); sleepMinutes = 0; label.hidden = true; toast('Đã tự dừng theo hẹn giờ.'); }, sleepMinutes * 60000);
+      sleepTimer = setTimeout(function () { playGeneration += 1; audio.pause(); sleepMinutes = 0; label.hidden = true; $('sleep-action').classList.remove('on'); toast('Đã tự dừng theo hẹn giờ.'); }, sleepMinutes * 60000);
     }
+  }
+  function closeSleepMenu() {
+    $('sleep-menu').hidden = true; $('sleep-action').setAttribute('aria-expanded', 'false');
+    $('sleep-action').focus(); wake();
+  }
+  function openSleepMenu() {
+    var box = $('sleep-options'); box.textContent = '';
+    [0, 15, 30, 60, 'end'].forEach(function (value) {
+      var text = value === 0 ? 'Tắt' : value === 'end' ? 'Hết bài · màn hình đen' : value + ' phút';
+      var button = el('button', '', text + (value === sleepMinutes ? '  ✓' : ''));
+      button.addEventListener('click', function () { closeSleepMenu(); setSleep(value); });
+      box.appendChild(button);
+    });
+    $('sleep-menu').hidden = false; $('sleep-action').setAttribute('aria-expanded', 'true');
+    clearTimeout(calmTimer); box.firstChild.focus();
+  }
+  $('sleep-action').addEventListener('click', openSleepMenu);
+  $('play-action').addEventListener('click', toggle);
+  $('seek-back-action').addEventListener('click', function () { seekBy(-SEEK); });
+  $('seek-forward-action').addEventListener('click', function () { seekBy(SEEK); });
+  function sleepMenuKey(name, event) {
+    if (/^(Arrow|Enter$|Back$)/.test(name)) event.preventDefault();
+    if (name === 'Back' || name === 'ArrowLeft') closeSleepMenu();
+    else if (name === 'ArrowUp' || name === 'ArrowDown') moveWithin(focusables($('sleep-options')), name);
+    else if (name === 'Enter' && document.activeElement.click) document.activeElement.click();
   }
   var speedCheck = 0;
   function verifySpeed() {
@@ -625,9 +684,9 @@
   audio.addEventListener('ended', function () {
     if (now.entry) { progress = player.saveProgress(progress, now.entry.url, audio.duration, audio.duration, Date.now()); writeJson(PROGRESS_KEY, progress); }
     if (now.entry) { playedMarks = organize.setPlayed(playedMarks, now.entry.url, true, Date.now()); writeJson('nghe-played', playedMarks); }
-    if (sleepMinutes === 'end') { clearTimeout(blackTimer); $('sleep-black').hidden = false; sleepMinutes = 0; $('p-sleep').hidden = true; audio.pause(); return; }
+    if (sleepMinutes === 'end') { clearTimeout(blackTimer); $('sleep-black').hidden = false; sleepMinutes = 0; $('p-sleep').hidden = true; $('sleep-action').classList.remove('on'); audio.pause(); return; }
     if (queue.length) { var nextQueued = library.shiftQueued(queue); queue = nextQueued.queue; writeJson('nghe-queue', queue); play([nextQueued.item], 0, findSource(nextQueued.item.sourceId)); now.next = 'none'; return; }
-    step(0);
+    if (!step(0)) continueCategory();
   });
   audio.addEventListener('error', function () { if (now.entry) toast('Không phát được bài này (nguồn có thể đã đổi hoặc chặn).'); });
 
@@ -701,24 +760,29 @@
   function playerKey(name) {
     wake();
     if (name === 'Back') {
-      if (sleepMinutes === 'end') { sleepMinutes = 0; clearTimeout(blackTimer); $('p-sleep').hidden = true; }
+      if (sleepMinutes === 'end') { sleepMinutes = 0; clearTimeout(blackTimer); $('p-sleep').hidden = true; $('sleep-action').classList.remove('on'); }
       showBrowse(); return;
     }
+    var inControls = document.activeElement && document.activeElement.parentNode === $('player-controls');
+    if (inControls && name === 'Enter') { document.activeElement.click(); return; }
+    if (inControls && (name === 'ArrowLeft' || name === 'ArrowRight')) { moveWithin(focusables($('player-controls')), name); return; }
     if (name === 'Enter' || name === 'MediaPlayPause') toggle();
     else if (name === 'MediaPlay') { if (audio.paused) toggle(); }
-    else if (name === 'MediaPause') { if (!audio.paused) toggle(); }
+    else if (name === 'MediaPause') { if (!audio.paused) toggle(); else playGeneration += 1; }
     else if (name === 'ArrowLeft' || name === 'MediaRewind') seekBy(-SEEK);
     else if (name === 'ArrowRight' || name === 'MediaFastForward') seekBy(SEEK);
-    else if (name === 'ArrowDown') cycleSleep();
+    else if (name === 'ArrowDown') $('sleep-action').focus();
+    else if (name === 'ArrowUp' && inControls) $('player').focus();
     else if (name === 'ArrowUp') cycleSpeed();
     else if (name === 'MediaTrackNext') step(1);
     else if (name === 'MediaTrackPrevious') step(-1);
-    else if (name === 'MediaStop') { audio.pause(); showBrowse(); }
+    else if (name === 'MediaStop') { playGeneration += 1; audio.pause(); showBrowse(); }
   }
   document.addEventListener('keydown', function (event) {
     var name = keyName(event);
     if (!$('actions').hidden) { actionKey(name, event); return; }
-    if (!$('sleep-black').hidden && /^(Arrow|Enter$|Back$|Media)/.test(name)) { event.preventDefault(); $('sleep-black').hidden = true; if (name === 'Back') { sleepMinutes = 0; clearTimeout(blackTimer); $('p-sleep').hidden = true; } return; }
+    if (!$('sleep-menu').hidden) { sleepMenuKey(name, event); return; }
+    if (!$('sleep-black').hidden && /^(Arrow|Enter$|Back$|Media)/.test(name)) { event.preventDefault(); $('sleep-black').hidden = true; if (name === 'Back') { sleepMinutes = 0; clearTimeout(blackTimer); $('p-sleep').hidden = true; $('sleep-action').classList.remove('on'); } return; }
     if (document.activeElement === $('search-input') && (event.key === 'Backspace' || name === 'Enter' || name === 'ArrowLeft' || name === 'ArrowRight')) return;
     if (/^(Arrow|Enter$|Back$|Media)/.test(name)) event.preventDefault();
     if (state.view === 'player') { playerKey(name); return; }
